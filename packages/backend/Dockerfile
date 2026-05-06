@@ -24,28 +24,23 @@ ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
 
 WORKDIR /app
 
-# 先只复制 package.json 相关文件
-COPY package*.json ./
-COPY packages/shared-components/package*.json ./packages/shared-components/
-COPY packages/backend/package*.json ./packages/backend/
+# 复制后端源代码和 package.json
+COPY packages/backend/package*.json ./
+COPY packages/shared-components ./packages/shared-components
+COPY packages/backend ./
 
-# 在根目录安装依赖（monorepo），跳过自动执行 postinstall
+# 直接在后端目录安装依赖
 RUN npm install --ignore-scripts
 
 # 重新编译 sqlite3
-RUN npm rebuild --prefix /app/packages/backend sqlite3
-
-# 再复制源代码
-COPY . .
-
-WORKDIR /app/packages/backend
+RUN npm rebuild sqlite3
 
 # 获取 social-auto-upload
 RUN if [ ! -d "social-auto-upload" ]; then \
       git clone https://github.com/dreammis/social-auto-upload.git social-auto-upload 2>&1 || true; \
     fi; \
     if [ -d "social-auto-upload" ]; then \
-      cd social-auto-upload && if command -v uv &> /dev/null; then uv sync 2>&1 || uv pip install -r requirements.txt 2>&1 || true; fi && cd /app/packages/backend; \
+      cd social-auto-upload && if command -v uv &> /dev/null; then uv sync 2>&1 || uv pip install -r requirements.txt 2>&1 || true; fi && cd /app; \
     fi
 
 RUN mkdir -p \
@@ -66,12 +61,12 @@ RUN mkdir -p \
   data
 
 # 确保入口脚本有执行权限
-RUN chmod +x /app/packages/backend/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
 EXPOSE 3001
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || exit 1
 
-ENTRYPOINT ["/app/packages/backend/docker-entrypoint.sh"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["node", "server.js"]

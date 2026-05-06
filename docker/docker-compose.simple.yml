@@ -15,8 +15,8 @@ services:
   # ==========================================
   backend:
     build:
-      context: ..
-      dockerfile: packages/backend/Dockerfile
+      context: ../packages/backend
+      dockerfile: Dockerfile
     container_name: shuziren-backend
     ports:
       - "${BACKEND_PORT:-3001}:3001"
@@ -60,7 +60,7 @@ services:
         max-file: "3"
 
   # ==========================================
-  # 前端 Web 服务 (Nginx)
+  # 前端 Web 服务（Nginx）
   # ==========================================
   frontend-pc:
     build:
@@ -89,7 +89,7 @@ services:
       - shuziren-network
 
   # ==========================================
-  # H5 移动端服务 (Nginx)
+  # H5 移动端服务（Nginx）
   # ==========================================
   frontend-h5:
     build:
