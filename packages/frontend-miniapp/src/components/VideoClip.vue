@@ -34,10 +34,7 @@
         <text class="style-section-title">文字样式</text>
         <view class="style-row">
           <text class="s-label">字号</text>
-          <view class="range-wrap">
-            <input type="range" :value="subtitleStyle.fontSize" @input="subtitleStyle.fontSize = +$event.target.value" min="12" max="40" step="2" class="range-slider" />
-          </view>
-          <text class="s-val">{{ subtitleStyle.fontSize }}px</text>
+          <slider :value="subtitleStyle.fontSize" :min="12" :max="40" :step="2" activeColor="#667eea" backgroundColor="rgba(255,255,255,0.1)" block-size="18" show-value @change="onFontSizeChange" class="style-slider" />
         </view>
         <view class="style-row">
           <text class="s-label">字体</text>
@@ -62,10 +59,7 @@
         </view>
         <view class="style-row">
           <text class="s-label">边框宽</text>
-          <view class="range-wrap">
-            <input type="range" :value="subtitleStyle.outlineWidth" @input="subtitleStyle.outlineWidth = +$event.target.value" min="0" max="6" step="1" class="range-slider" />
-          </view>
-          <text class="s-val">{{ subtitleStyle.outlineWidth }}px</text>
+          <slider :value="subtitleStyle.outlineWidth" :min="0" :max="6" :step="1" activeColor="#667eea" backgroundColor="rgba(255,255,255,0.1)" block-size="18" show-value @change="onOutlineWidthChange" class="style-slider" />
         </view>
       </view>
 
@@ -80,36 +74,26 @@
         </view>
         <view class="style-row">
           <text class="s-label">透明度</text>
-          <view class="range-wrap">
-            <input type="range" :value="subtitleStyle.backAlpha" @input="subtitleStyle.backAlpha = +$event.target.value" min="0" max="100" step="5" class="range-slider" />
-          </view>
-          <text class="s-val">{{ subtitleStyle.backAlpha }}%</text>
+          <slider :value="subtitleStyle.backAlpha" :min="0" :max="100" :step="5" activeColor="#667eea" backgroundColor="rgba(255,255,255,0.1)" block-size="18" show-value @change="onBackAlphaChange" class="style-slider" />
         </view>
       </view>
 
       <view class="style-section">
-        <text class="style-section-title">位置</text>
-        <view class="style-row">
-          <text class="s-label">水平</text>
-          <view class="range-wrap">
-            <input type="range" :value="subtitleStyle.posX" @input="subtitleStyle.posX = +$event.target.value" min="0" max="100" step="1" class="range-slider" />
+        <text class="style-section-title">字幕位置</text>
+        <text class="pos-hint">在下方预览区域拖动字幕调整位置</text>
+        <view
+          class="subtitle-preview-box"
+          @touchstart="onPreviewTouchStart"
+          @touchmove.stop.prevent="onPreviewTouchMove"
+          @touchend="onPreviewTouchEnd"
+          @mousedown="onPreviewMouseDown"
+        >
+          <view class="preview-grid"></view>
+          <view class="subtitle-preview-text" :style="previewStyle" :class="{dragging: isDragging}">
+            {{ previewText || '字幕预览' }}
           </view>
-          <text class="s-val">{{ subtitleStyle.posX }}%</text>
-        </view>
-        <view class="style-row">
-          <text class="s-label">垂直</text>
-          <view class="range-wrap">
-            <input type="range" :value="subtitleStyle.posY" @input="subtitleStyle.posY = +$event.target.value" min="0" max="100" step="1" class="range-slider" />
-          </view>
-          <text class="s-val">{{ subtitleStyle.posY }}%</text>
-        </view>
-      </view>
-
-      <view class="style-section" v-if="subtitleText">
-        <text class="style-section-title">字幕预览</text>
-        <view class="subtitle-preview-box">
-          <view class="subtitle-preview-text" :style="previewStyle">
-            {{ previewText }}
+          <view class="pos-indicator">
+            <text class="pos-indicator-text">X:{{ subtitleStyle.posX }}% Y:{{ subtitleStyle.posY }}%</text>
           </view>
         </view>
       </view>
@@ -124,10 +108,7 @@
         <text class="style-section-title">封面样式</text>
         <view class="style-row">
           <text class="s-label">字号</text>
-          <view class="range-wrap">
-            <input type="range" :value="coverStyle.fontSize" @input="coverStyle.fontSize = +$event.target.value" min="12" max="60" step="2" class="range-slider" />
-          </view>
-          <text class="s-val">{{ coverStyle.fontSize }}px</text>
+          <slider :value="coverStyle.fontSize" :min="12" :max="60" :step="2" activeColor="#667eea" backgroundColor="rgba(255,255,255,0.1)" block-size="18" show-value @change="onCoverFontSizeChange" class="style-slider" />
         </view>
         <view class="style-row">
           <text class="s-label">颜色</text>
@@ -145,10 +126,7 @@
         </view>
         <view class="style-row">
           <text class="s-label">边框宽</text>
-          <view class="range-wrap">
-            <input type="range" :value="coverStyle.outlineWidth" @input="coverStyle.outlineWidth = +$event.target.value" min="0" max="6" step="1" class="range-slider" />
-          </view>
-          <text class="s-val">{{ coverStyle.outlineWidth }}px</text>
+          <slider :value="coverStyle.outlineWidth" :min="0" :max="6" :step="1" activeColor="#667eea" backgroundColor="rgba(255,255,255,0.1)" block-size="18" show-value @change="onCoverOutlineWidthChange" class="style-slider" />
         </view>
       </view>
       <button class="action-btn secondary" @tap="handleGenerateCover" :disabled="!videoPath">
@@ -220,11 +198,12 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, getCurrentInstance } from 'vue'
 import api, { uploadFile } from '../api/index.js'
 
 const props = defineProps({ videoPath: { type: String, default: '' } })
 const emit = defineEmits(['video-composed', 'start-task'])
+const instance = getCurrentInstance()
 
 const activeTab = ref('subtitle')
 const subtitleText = ref('')
@@ -234,6 +213,8 @@ const showColorPickerPanel = ref(false)
 const showFontPicker = ref(false)
 const currentPickerTarget = ref('')
 const currentPickerValue = ref('')
+const isDragging = ref(false)
+let cachedRect = null
 
 const subtitleStyle = reactive({
   fontSize: 20,
@@ -279,7 +260,7 @@ const previewText = computed(() => {
 
 const previewStyle = computed(() => {
   const s = {
-    fontSize: subtitleStyle.fontSize + 'px',
+    fontSize: Math.max(12, subtitleStyle.fontSize * 0.7) + 'px',
     fontFamily: subtitleStyle.fontName,
     color: subtitleStyle.fontColor,
     left: subtitleStyle.posX + '%',
@@ -313,6 +294,74 @@ const presetColors = [
   '#3333FF', '#6600CC', '#9900CC', '#CC00CC', '#FF00FF', '#FF66CC',
   '#FFCCCC', '#FFE0CC', '#FFFFCC', '#CCFFCC', '#CCE5FF', '#E0CCFF'
 ]
+
+function onFontSizeChange(e) { subtitleStyle.fontSize = e.detail.value }
+function onOutlineWidthChange(e) { subtitleStyle.outlineWidth = e.detail.value }
+function onBackAlphaChange(e) { subtitleStyle.backAlpha = e.detail.value }
+function onCoverFontSizeChange(e) { coverStyle.fontSize = e.detail.value }
+function onCoverOutlineWidthChange(e) { coverStyle.outlineWidth = e.detail.value }
+
+function getPreviewBoxRect() {
+  return new Promise(resolve => {
+    const query = uni.createSelectorQuery().in(instance.proxy)
+    query.select('.subtitle-preview-box').boundingClientRect(rect => {
+      resolve(rect)
+    }).exec()
+  })
+}
+
+async function onPreviewTouchStart(e) {
+  isDragging.value = true
+  cachedRect = await getPreviewBoxRect()
+  if (cachedRect) {
+    updatePosFromTouch(e.touches[0], cachedRect)
+  }
+}
+
+function onPreviewTouchMove(e) {
+  if (!isDragging.value || !cachedRect) return
+  updatePosFromTouch(e.touches[0], cachedRect)
+}
+
+function onPreviewTouchEnd() {
+  isDragging.value = false
+}
+
+function onPreviewMouseDown(e) {
+  isDragging.value = true
+  getPreviewBoxRect().then(rect => {
+    cachedRect = rect
+    if (cachedRect) {
+      updatePosFromMouse(e, cachedRect)
+    }
+  })
+  const onMouseMove = (ev) => {
+    if (!isDragging.value || !cachedRect) return
+    ev.preventDefault()
+    updatePosFromMouse(ev, cachedRect)
+  }
+  const onMouseUp = () => {
+    isDragging.value = false
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+  }
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+}
+
+function updatePosFromTouch(touch, rect) {
+  const x = touch.clientX - rect.left
+  const y = touch.clientY - rect.top
+  subtitleStyle.posX = Math.round(Math.max(0, Math.min(100, (x / rect.width) * 100)))
+  subtitleStyle.posY = Math.round(Math.max(0, Math.min(100, (y / rect.height) * 100)))
+}
+
+function updatePosFromMouse(e, rect) {
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
+  subtitleStyle.posX = Math.round(Math.max(0, Math.min(100, (x / rect.width) * 100)))
+  subtitleStyle.posY = Math.round(Math.max(0, Math.min(100, (y / rect.height) * 100)))
+}
 
 function openColorPicker(target) {
   currentPickerTarget.value = target
@@ -447,13 +496,10 @@ async function handleCompose() {
 
 .style-section { margin-top: 24rpx; padding: 20rpx; background: rgba(0,0,0,0.2); border-radius: 16rpx; border: 1rpx solid rgba(255,255,255,0.06); }
 .style-section-title { font-size: 26rpx; font-weight: 600; color: #667eea; margin-bottom: 16rpx; display: block; }
-.style-row { display: flex; align-items: center; margin-bottom: 16rpx; min-height: 60rpx; }
+.style-row { display: flex; align-items: center; margin-bottom: 12rpx; min-height: 60rpx; }
 .style-row:last-child { margin-bottom: 0; }
 .s-label { font-size: 24rpx; color: rgba(255,255,255,0.6); min-width: 80rpx; flex-shrink: 0; }
-.s-val { font-size: 22rpx; color: rgba(255,255,255,0.5); min-width: 72rpx; text-align: right; flex-shrink: 0; }
-.range-wrap { flex: 1; margin: 0 12rpx; min-width: 0; }
-.range-slider { width: 100%; height: 40rpx; -webkit-appearance: none; appearance: none; background: rgba(255,255,255,0.1); border-radius: 20rpx; outline: none; }
-.range-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 36rpx; height: 36rpx; border-radius: 50%; background: #667eea; cursor: pointer; border: 4rpx solid #fff; box-shadow: 0 2rpx 12rpx rgba(102,126,234,0.5); }
+.style-slider { flex: 1; margin: 0; min-width: 0; }
 
 .color-preview-area { display: flex; align-items: center; gap: 16rpx; flex: 1; min-width: 0; padding: 8rpx 16rpx; background: rgba(255,255,255,0.06); border-radius: 12rpx; border: 1rpx solid rgba(255,255,255,0.1); }
 .color-swatch-lg { width: 48rpx; height: 48rpx; border-radius: 10rpx; border: 2rpx solid rgba(255,255,255,0.3); flex-shrink: 0; }
@@ -463,8 +509,13 @@ async function handleCompose() {
 .font-picker-text { font-size: 24rpx; color: rgba(255,255,255,0.8); }
 .font-picker-arrow { font-size: 20rpx; color: rgba(255,255,255,0.4); }
 
-.subtitle-preview-box { position: relative; width: 100%; height: 240rpx; background: #000; border-radius: 12rpx; overflow: hidden; }
-.subtitle-preview-text { position: absolute; white-space: nowrap; font-weight: 500; }
+.pos-hint { font-size: 22rpx; color: rgba(255,255,255,0.4); margin-bottom: 16rpx; display: block; }
+.subtitle-preview-box { position: relative; width: 100%; height: 400rpx; background: linear-gradient(135deg, #0a0a1a, #1a1a2e); border-radius: 16rpx; overflow: hidden; border: 2rpx solid rgba(102,126,234,0.2); touch-action: none; }
+.preview-grid { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 20% 20%; pointer-events: none; }
+.subtitle-preview-text { position: absolute; white-space: nowrap; font-weight: 500; cursor: grab; user-select: none; transition: opacity 0.15s; }
+.subtitle-preview-text.dragging { opacity: 0.8; cursor: grabbing; }
+.pos-indicator { position: absolute; bottom: 12rpx; right: 16rpx; background: rgba(0,0,0,0.6); padding: 6rpx 16rpx; border-radius: 8rpx; pointer-events: none; }
+.pos-indicator-text { font-size: 20rpx; color: rgba(255,255,255,0.5); font-family: monospace; }
 
 .color-picker-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 9999; display: flex; align-items: center; justify-content: center; }
 .color-picker-panel { width: 90%; max-width: 640rpx; background: rgba(30,30,60,0.98); border-radius: 24rpx; border: 1rpx solid rgba(102,126,234,0.3); padding: 32rpx; box-shadow: 0 16rpx 64rpx rgba(0,0,0,0.5); }
