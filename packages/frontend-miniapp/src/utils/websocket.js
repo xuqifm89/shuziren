@@ -8,3 +8,7 @@ export function createWebSocket(path = '/ws') {
     ws.onClose(() => { console.log('WebSocket closed') })
   })
 }
+
+export function getTaskWebSocket() {
+  return createWebSocket('/ws')
+}
