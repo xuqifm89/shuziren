@@ -117,10 +117,21 @@ class TaskManager {
       const saved = uni.getStorageSync(TASK_STATE_KEY)
       if (saved) {
         const state = typeof saved === 'string' ? JSON.parse(saved) : saved
-        if (state.isActive && (state.status === 'processing' || state.status === 'pending')) {
-          this._setState(state)
-          if (state.status === 'processing') this._startProgressAnimation()
-          return true
+        if (state.isActive) {
+          if (state.status === 'processing') {
+            this._setState(state)
+            this._startProgressAnimation()
+            return true
+          }
+          if (state.status === 'success' || state.status === 'error') {
+            this._setState(state)
+            return true
+          }
+          if (state.status === 'pending') {
+            this._setState({ isActive: false })
+            uni.removeStorageSync(TASK_STATE_KEY)
+            return false
+          }
         }
       }
     } catch (e) {}

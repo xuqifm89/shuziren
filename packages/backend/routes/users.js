@@ -292,8 +292,8 @@ router.get('/permissions/me', authMiddleware, async (req, res) => {
 
 router.put('/:id', authMiddleware, updateUserRules, async (req, res) => {
   try {
-    const { nickname, email, phone, avatar } = req.body;
-    const user = await userRepository.update(req.params.id, { nickname, email, phone, avatar });
+    const { nickname, email, phone, avatar, bio } = req.body;
+    const user = await userRepository.update(req.params.id, { nickname, email, phone, avatar, bio });
     if (user) {
       res.json(user);
     } else {
@@ -307,7 +307,7 @@ router.put('/:id', authMiddleware, updateUserRules, async (req, res) => {
 router.put('/:id/password', authMiddleware, changePasswordRules, async (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body;
-    const user = await userRepository.findById(req.params.id);
+    const user = await userRepository.findByIdWithPassword(req.params.id);
 
     if (!user) {
       return res.status(404).json({ error: '用户不存在' });

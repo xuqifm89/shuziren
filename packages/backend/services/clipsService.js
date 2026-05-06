@@ -178,6 +178,7 @@ async function addCover(videoPath, coverImagePath, duration = 2) {
   const ffmpegPath = getFfmpegPath();
   let width = 720;
   let height = 1280;
+  let hasAudio = false;
   try {
     const { exec } = require('child_process');
     const info = await new Promise((resolve, reject) => {
@@ -199,6 +200,7 @@ async function addCover(videoPath, coverImagePath, duration = 2) {
         height = 1280;
       }
     }
+    hasAudio = /Stream\s+#\d+:\d+.*Audio:/.test(info);
   } catch (e) {
     console.warn('⚠️ Failed to detect video resolution:', e.message);
   }
@@ -206,20 +208,26 @@ async function addCover(videoPath, coverImagePath, duration = 2) {
   return new Promise((resolve, reject) => {
     const { execFile } = require('child_process');
     const delayMs = Math.round(duration * 1000);
+    let filterComplex;
+    let mapArgs;
+    if (hasAudio) {
+      filterComplex = `[0:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,format=yuv420p[cover];[1:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,format=yuv420p[video];[1:a]adelay=${delayMs}|${delayMs}[audio];[cover][video]concat=n=2:v=1:a=0[outv]`;
+      mapArgs = ['-map', '[outv]', '-map', '[audio]', '-c:v', 'libx264', '-c:a', 'aac'];
+    } else {
+      filterComplex = `[0:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,format=yuv420p[cover];[1:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,format=yuv420p[video];[cover][video]concat=n=2:v=1:a=0[outv]`;
+      mapArgs = ['-map', '[outv]', '-c:v', 'libx264'];
+    }
     const args = [
       '-y',
       '-loop', '1',
       '-t', String(duration),
       '-i', coverImagePath,
       '-i', videoPath,
-      '-filter_complex', `[0:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,format=yuv420p[cover];[1:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,format=yuv420p[video];[1:a]adelay=${delayMs}|${delayMs}[audio];[cover][video]concat=n=2:v=1:a=0[outv]`,
-      '-map', '[outv]',
-      '-map', '[audio]?',
-      '-c:v', 'libx264',
-      '-c:a', 'aac',
+      '-filter_complex', filterComplex,
+      ...mapArgs,
       outputPath
     ];
-    console.log(`🎬 addCover command: both streams to ${width}x${height}, delay audio ${delayMs}ms`);
+    console.log(`🎬 addCover command: ${width}x${height}, audio=${hasAudio}, delay ${delayMs}ms`);
     execFile(ffmpegPath, args, { timeout: 300000 }, (err, stdout, stderr) => {
       if (err) {
         reject(new Error(`ffmpeg addCover error: ${stderr || err.message}`));
@@ -233,11 +241,29 @@ async function addCover(videoPath, coverImagePath, duration = 2) {
 async function addBgm(videoPath, bgmPath, volume = 0.3) {
   const outputPath = path.join(OUTPUT_DIR, `bgm_${Date.now()}.mp4`);
 
+  let hasAudio = false;
+  try {
+    const ffmpegPath = getFfmpegPath();
+    const { exec } = require('child_process');
+    const info = await new Promise((resolve, reject) => {
+      exec(`"${ffmpegPath}" -i "${videoPath}"`, { encoding: 'utf8', timeout: 10000 }, (err, stdout, stderr) => {
+        if (stderr) resolve(stderr);
+        else if (stdout) resolve(stdout);
+        else reject(err || new Error('No output'));
+      });
+    });
+    hasAudio = /Stream\s+#\d+:\d+.*Audio:/.test(info);
+  } catch (e) {
+    console.warn('⚠️ Failed to detect audio stream:', e.message);
+  }
+
   return new Promise((resolve, reject) => {
-    ffmpeg()
+    const ff = ffmpeg()
       .input(videoPath)
-      .input(bgmPath)
-      .complexFilter([
+      .input(bgmPath);
+
+    if (hasAudio) {
+      ff.complexFilter([
         `[1:a]volume=${volume}[bgm]`,
         `[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[a]`
       ])
@@ -247,8 +273,21 @@ async function addBgm(videoPath, bgmPath, volume = 0.3) {
         '-c:v', 'copy',
         '-c:a', 'aac',
         '-shortest'
+      ]);
+    } else {
+      ff.complexFilter([
+        `[1:a]volume=${volume}[bgm]`
       ])
-      .output(outputPath)
+      .outputOptions([
+        '-map', '0:v',
+        '-map', '[bgm]',
+        '-c:v', 'copy',
+        '-c:a', 'aac',
+        '-shortest'
+      ]);
+    }
+
+    ff.output(outputPath)
       .on('end', () => {
         resolve({ videoPath: outputPath, success: true });
       })

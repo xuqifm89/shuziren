@@ -138,7 +138,12 @@ function handleChangeAvatar() {
 
 async function handleSaveProfile() {
   try {
-    await api.put(`/users/${userInfo.value.id}`, profileForm.value)
+    await api.put(`/users/${userInfo.value.id}`, {
+      nickname: profileForm.value.username,
+      email: profileForm.value.email,
+      phone: profileForm.value.phone,
+      bio: profileForm.value.bio
+    })
     Object.assign(userInfo.value, profileForm.value)
     uni.setStorageSync('userInfo', JSON.stringify(userInfo.value))
     uni.showToast({ title: '保存成功', icon: 'success' })
@@ -157,7 +162,7 @@ async function handleChangePassword() {
   }
   try {
     await api.put(`/users/${userInfo.value.id}/password`, {
-      currentPassword: passwordForm.value.currentPassword,
+      oldPassword: passwordForm.value.currentPassword,
       newPassword: passwordForm.value.newPassword
     })
     uni.showToast({ title: '密码修改成功', icon: 'success' })

@@ -251,6 +251,15 @@ console.log('🔄 AvatarVideo props:', {
 const emit = defineEmits(['video-generated', 'audio-generated'])
 const taskManager = useTaskManager()
 
+watch(() => taskManager.state.outputUrl, (newUrl) => {
+  if (newUrl && taskManager.state.status === 'success') {
+    videoPath.value = '' + newUrl
+    isGenerating.value = false
+    isGeneratingVideo.value = false
+    emit('video-generated', newUrl)
+  }
+})
+
 const allAvatars = ref([])
 const selectedAvatar = ref(null)
 const selectedAvatarId = ref('')
@@ -582,18 +591,12 @@ const generateImageToVideo = async () => {
 
   taskManager.executeAfterConfirm(async () => {
     try {
-      console.log('🛑 [AvatarVideo] 停止所有现有轮询...')
-
       isGeneratingVideo.value = true
       error.value = ''
 
       const imageFileUrl = '' + selectedImage.value.fileUrl
       const audioFileUrl = '' + selectedAudio.value.fileUrl
       const user = getCurrentUser()
-
-      console.log('🎬 使用的图片:', imageFileUrl)
-      console.log('🎬 使用的音频:', audioFileUrl)
-      console.log('💾 [AvatarVideo] 准备调用图片转视频 API...')
 
       const response = await fetch('/api/audio/generate-image-to-video', {
         method: 'POST',
@@ -617,11 +620,10 @@ const generateImageToVideo = async () => {
         }
       }
 
-      console.log('🎬 生成结果:', data)
-      if (data.success && data.videoUrl) {
+      if (data.success && data.taskId) {
+        return { success: true, taskId: data.taskId }
+      } else if (data.success && data.videoUrl) {
         videoPath.value = '' + data.videoUrl
-        console.log('✅ videoPath已设置:', videoPath.value)
-        console.log('✅ [AvatarVideo] 图片转视频成功，已停止所有后台任务')
         return { success: true, message: '视频生成完成' }
       } else {
         throw new Error(getFriendlyErrorMessage(data.error))
@@ -1058,17 +1060,12 @@ const generateVideo = async () => {
 
   taskManager.executeAfterConfirm(async () => {
     try {
-      console.log('🛑 [AvatarVideo] 停止所有现有轮询...')
-
       isGenerating.value = true
       error.value = ''
-
-      console.log('💾 [AvatarVideo] 准备调用视频生成 API...')
 
       if (props.useVideoDriver) {
         const videoFileUrl = '' + selectedAvatar.value.fileUrl
 
-        let data
         const response = await fetch('/api/audio/generate-video-to-video', {
           method: 'POST',
           headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
@@ -1079,6 +1076,7 @@ const generateVideo = async () => {
           })
         })
 
+        let data
         try {
           data = await response.json()
         } catch (parseErr) {
@@ -1090,11 +1088,10 @@ const generateVideo = async () => {
           }
         }
 
-        console.log('🎬 生成结果:', data)
-        if (data.success && data.videoUrl) {
+        if (data.success && data.taskId) {
+          return { success: true, taskId: data.taskId }
+        } else if (data.success && data.videoUrl) {
           videoPath.value = '' + data.videoUrl
-          console.log('✅ videoPath已设置:', videoPath.value)
-          console.log('✅ [AvatarVideo] 视频驱动生成成功，已停止所有后台任务')
           return { success: true, message: '视频生成完成' }
         } else {
           throw new Error(getFriendlyErrorMessage(data.error))
@@ -1106,15 +1103,16 @@ const generateVideo = async () => {
           body: JSON.stringify({
             audioPath: audioToUse,
             avatarId: selectedAvatar.value.id,
-            modelType: 'local'
+            modelType: 'local',
+            userId: getCurrentUser()?.id
           })
         })
 
         const data = await response.json()
-        console.log('🎬 生成结果:', data)
-        if (data.videoPath) {
+        if (data.success && data.taskId) {
+          return { success: true, taskId: data.taskId }
+        } else if (data.videoPath) {
           videoPath.value = '/' + data.videoPath
-          console.log('✅ [AvatarVideo] 肖像视频生成成功，已停止所有后台任务')
           return { success: true, message: '视频生成完成' }
         } else {
           throw new Error(data.error || '生成失败')

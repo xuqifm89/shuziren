@@ -252,16 +252,13 @@ export function useTaskManager() {
 
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:3001/api/tasks/cancel', {
+      const taskId = state.serverTaskId || state.taskId
+      const response = await fetch(`http://localhost:3001/api/tasks/${taskId}/cancel`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({
-          taskId: state.taskId,
-          taskType: state.taskType
-        })
+        }
       })
 
       const data = await response.json()

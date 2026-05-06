@@ -18,7 +18,7 @@
         >
           <button
             @click="navigate"
-            :class="['nav-item', { active: isMenuActive(menu, isActive) }]"
+            :class="['nav-item', { active: isMenuActive(menu) }]"
           >
             <span class="nav-icon">{{ menu.icon }}</span>
             {{ menu.label }}
@@ -107,10 +107,9 @@ const menuItems = [
   { route: '/settings', label: '系统设置', icon: '⚙️' }
 ]
 
-const isMenuActive = (menu, isActive) => {
+const isMenuActive = (menu) => {
   if (menu.route === '/') return route.path === '/'
-  if (menu.route.startsWith('/library/')) return route.path.startsWith('/library/')
-  return isActive
+  return route.path === menu.route || route.path.startsWith(menu.route + '/')
 }
 
 const vClickOutside = {

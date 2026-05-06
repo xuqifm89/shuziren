@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const audioService = require('../services/audioService');
+const taskService = require('../services/taskService');
 const voiceRepository = require('../repositories/VoiceRepository');
 const fileService = require('../services/fileService');
 
@@ -43,14 +44,12 @@ router.post('/generate-dubbing', async (req, res) => {
       voiceFilePath = path.join(__dirname, '..', voiceFileUrl);
     }
 
-    const result = await audioService.generateDubbing(voiceFilePath, text, emotionDescription, userId);
-
-    res.json({
-      success: true,
-      audioUrl: result.audioUrl,
-      fileName: result.audioUrl.split('/').pop(),
-      dubbing: result.dubbing
-    });
+    try {
+      const result = await audioService.generateDubbing(voiceFilePath, text, emotionDescription, userId, null);
+      res.json({ audioUrl: result.audioUrl, success: true });
+    } catch (dubbingError) {
+      res.status(500).json({ error: dubbingError.message });
+    }
   } catch (error) {
     console.error('配音生成失败:', error);
     res.status(500).json({ error: error.message });
@@ -116,13 +115,12 @@ router.post('/generate-image-to-video', async (req, res) => {
       audioFileUrl = path.resolve(__dirname, '..', audioFileUrl.replace(/^\//, ''));
     }
 
-    const result = await audioService.generateImageToVideo(imageFileUrl, audioFileUrl, userId);
-
-    res.json({
-      success: true,
-      videoUrl: result.videoUrl,
-      work: result.work
-    });
+    try {
+      const result = await audioService.generateImageToVideo(imageFileUrl, audioFileUrl, userId, null);
+      res.json({ videoUrl: result.videoUrl, success: true });
+    } catch (genError) {
+      res.status(500).json({ error: genError.message });
+    }
   } catch (error) {
     console.error('图片生成视频失败:', error);
     res.status(500).json({ error: error.message });
@@ -148,13 +146,12 @@ router.post('/generate-video-to-video', async (req, res) => {
       audioFileUrl = path.resolve(__dirname, '..', audioFileUrl.replace(/^\//, ''));
     }
 
-    const result = await audioService.generateVideoToVideo(videoFileUrl, audioFileUrl, userId);
-
-    res.json({
-      success: true,
-      videoUrl: result.videoUrl,
-      work: result.work
-    });
+    try {
+      const result = await audioService.generateVideoToVideo(videoFileUrl, audioFileUrl, userId, null);
+      res.json({ videoUrl: result.videoUrl, success: true });
+    } catch (genError) {
+      res.status(500).json({ error: genError.message });
+    }
   } catch (error) {
     console.error('视频生成视频失败:', error);
     res.status(500).json({ error: error.message });

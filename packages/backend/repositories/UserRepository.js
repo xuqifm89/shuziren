@@ -16,6 +16,10 @@ class UserRepository {
     return user;
   }
 
+  async findByIdWithPassword(id) {
+    return await User.findByPk(id);
+  }
+
   async findByUsername(username) {
     return await User.findOne({ where: { username } });
   }

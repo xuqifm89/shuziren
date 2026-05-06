@@ -1715,4 +1715,58 @@ onMounted(() => {
 .add-account-form .form-input {
   flex: 1;
 }
+
+.qrcode-dialog-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.qrcode-tip {
+  text-align: center;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.qrcode-subtip {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 4px;
+}
+
+.qrcode-image-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.qrcode-image {
+  width: 200px;
+  height: 200px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.qrcode-refresh-tip {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.qrcode-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px 0;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+}
+
+.qrcode-loading .el-icon {
+  font-size: 32px;
+  color: var(--el-color-primary);
+}
 </style>

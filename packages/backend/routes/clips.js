@@ -12,9 +12,21 @@ const { getMockTranscription } = require('../services/mockASR');
 const WorkLibrary = require('../models/WorkLibrary');
 const fileService = require('../services/fileService');
 const { getFfmpegPath } = require('../utils/ffmpegHelper');
+const taskService = require('../services/taskService');
 
 const coversDir = path.join(__dirname, '../assets/covers');
 fileService.ensureDir(coversDir);
+
+function parseSubtitleText(text) {
+  if (!text) return [];
+  const lines = text.split('\n').filter(l => l.trim());
+  const duration = 3;
+  return lines.map((line, i) => ({
+    text: line.trim(),
+    start: i * duration,
+    end: (i + 1) * duration
+  }));
+}
 
 const coverStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, coversDir),
@@ -151,7 +163,11 @@ router.post('/compose', coverUpload.single('cover'), async (req, res) => {
 
       const fileName = `composed_${Date.now()}.mp4`;
       const newPath = path.join(userOutputDir, fileName);
-      fileService.renameFile(result.videoPath, newPath);
+      try {
+        fileService.renameFile(result.videoPath, newPath);
+      } catch (renameErr) {
+        console.warn('⚠️ Failed to rename output file:', renameErr.message);
+      }
       result.videoPath = newPath;
       result.videoUrl = `/output/${resolvedUserId}/videos/${fileName}`;
 
@@ -172,7 +188,7 @@ router.post('/compose', coverUpload.single('cover'), async (req, res) => {
           videoPath: result.videoUrl,
           status: 'completed',
           duration: duration,
-          size: stats.size,
+          size: stats ? stats.size : 0,
           sourceType: 'clip_compose',
           category: 'video'
         });
@@ -263,9 +279,8 @@ router.post('/ai-generate-subtitle', async (req, res) => {
 
     const ffmpegPath = getFfmpegPath();
     if (!ffmpegPath) {
-      return res.status(500).json({ error: 'ffmpeg 未安装或未找到，请将 ffmpeg 放到项目根目录或 backend 目录下，或安装到系统 PATH 中' });
+      return res.status(500).json({ error: 'ffmpeg 未安装或未找到' });
     }
-    console.log(`🎬 使用 ffmpeg: ${ffmpegPath}`);
     execSync(`"${ffmpegPath}" -y -i "${resolvedPath}" -vn -acodec pcm_s16le -ar 44100 -ac 1 "${audioPath}"`, {
       stdio: 'pipe',
       timeout: 120000
@@ -274,10 +289,6 @@ router.post('/ai-generate-subtitle', async (req, res) => {
     if (!fileService.fileExists(audioPath)) {
       return res.status(500).json({ error: '音频提取失败' });
     }
-
-    let usingMock = false;
-    let textResult = '';
-    let segments = [];
 
     try {
       const dynamicConfig = await getDynamicConfig();
@@ -312,112 +323,21 @@ router.post('/ai-generate-subtitle', async (req, res) => {
           throw new Error('任务执行失败: ' + (taskResult.error || ''));
         }
 
-        textResult = taskResult.text || '';
-
-        if (taskResult.outputs && taskResult.outputs.length > 0) {
-          for (const outputUrl of taskResult.outputs) {
-            const url = typeof outputUrl === 'string' ? outputUrl : (outputUrl.url || outputUrl.cos_url || '');
-            if (!url) continue;
-            try {
-              const axios = require('axios');
-              const fileResp = await axios.get(url, { responseType: 'text' });
-              const fileContent = fileResp.data;
-
-              if (url.endsWith('.json')) {
-                try {
-                  const parsed = JSON.parse(fileContent);
-                  if (Array.isArray(parsed)) {
-                    segments = parsed.map(item => ({
-                      start: item.start || item.begin || 0,
-                      end: item.end || item.finish || 0,
-                      text: item.text || item.content || ''
-                    }));
-                  }
-                } catch (e) {}
-              } else if (url.endsWith('.srt')) {
-                const srtBlocks = fileContent.trim().split(/\n\s*\n/);
-                segments = [];
-                for (const block of srtBlocks) {
-                  const lines = block.trim().split('\n');
-                  if (lines.length >= 3) {
-                    const timeMatch = lines[1].match(/(\d+):(\d+):(\d+)[,.](\d+)\s*-->\s*(\d+):(\d+):(\d+)[,.](\d+)/);
-                    if (timeMatch) {
-                      const start = parseInt(timeMatch[1]) * 3600 + parseInt(timeMatch[2]) * 60 + parseInt(timeMatch[3]) + parseInt(timeMatch[4]) / 1000;
-                      const end = parseInt(timeMatch[5]) * 3600 + parseInt(timeMatch[6]) * 60 + parseInt(timeMatch[7]) + parseInt(timeMatch[8]) / 1000;
-                      const text = lines.slice(2).join('\n').trim();
-                      segments.push({ start, end, text });
-                    }
-                  }
-                }
-              } else if (url.endsWith('.txt')) {
-                const lines = fileContent.trim().split('\n');
-                segments = [];
-                for (const line of lines) {
-                  const trimmed = line.trim();
-                  if (!trimmed) continue;
-                  const parts = trimmed.split(/\t/);
-                  if (parts.length >= 3) {
-                    const text = parts[0].trim();
-                    const start = parseFloat(parts[1]);
-                    const end = parseFloat(parts[2]);
-                    if (text && !isNaN(start) && !isNaN(end)) {
-                      segments.push({ start, end, text });
-                    }
-                  } else if (parts.length === 1 && parts[0].trim()) {
-                    segments.push({ start: 0, end: 0, text: parts[0].trim() });
-                  }
-                }
-              }
-
-              if (!textResult && segments.length > 0) {
-                textResult = segments.map(s => s.text).join('\n');
-              }
-            } catch (e) {
-              console.warn('下载输出文件失败:', e.message);
-            }
-          }
+        let subtitleText = taskResult.text || '';
+        if (!subtitleText && taskResult.outputs && taskResult.outputs.text) {
+          subtitleText = Array.isArray(taskResult.outputs.text) ? taskResult.outputs.text.join('\n') : taskResult.outputs.text;
         }
 
-        if (!textResult && segments.length === 0) {
-          throw new Error('未获取到转写结果');
-        }
-
-        if (textResult && segments.length === 0) {
-          const lines = textResult.trim().split('\n');
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
-            const parts = trimmed.split(/\t/);
-            if (parts.length >= 3) {
-              const text = parts[0].trim();
-              const start = parseFloat(parts[1]);
-              const end = parseFloat(parts[2]);
-              if (text && !isNaN(start) && !isNaN(end)) {
-                segments.push({ start, end, text });
-              }
-            } else if (trimmed) {
-              segments.push({ start: 0, end: 0, text: trimmed });
-            }
-          }
-          if (segments.length > 0) {
-            textResult = segments.map(s => s.text).join('\n');
-          }
-        }
+        const subtitles = parseSubtitleText(subtitleText);
+        res.json({ subtitles, text: subtitleText, success: true });
     } catch (error) {
-      console.warn('RunningHub 转写失败，使用模拟方案:', error.message);
-      usingMock = true;
-      textResult = getMockTranscription(path.basename(audioPath));
+      console.warn('RunningHub 转写失败:', error.message);
+      res.status(500).json({ error: error.message });
     }
 
     try { fileService.deleteFile(audioPath); } catch (e) {}
-
-    res.json({
-      success: true,
-      text: textResult,
-      segments,
-      usingMock
-    });
   } catch (error) {
+    console.error('字幕生成失败:', error.message);
     res.status(500).json({ error: error.message });
   }
 });

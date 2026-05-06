@@ -158,14 +158,48 @@
             <slider :value="coverStyle.outlineWidth" :min="0" :max="6" :step="1" activeColor="#667eea" backgroundColor="rgba(255,255,255,0.1)" block-size="18" show-value @change="e => coverStyle.outlineWidth = e.detail.value" class="style-slider" />
           </view>
         </view>
-        <button class="action-btn secondary" @tap="handleGenerateCover" :disabled="!videoPath">
-          生成封面
+        <button class="action-btn secondary" @tap="handleUseCover" :disabled="!coverDisplayUrl">
+          {{ coverUsed ? '✅ 封面已使用' : '使用此封面' }}
         </button>
+      </view>
+
+      <view class="bgm-section">
+        <view class="bgm-header" @tap="showBgm = !showBgm">
+          <text class="bgm-title">🎵 背景音乐</text>
+          <text :class="['bgm-arrow', showBgm ? 'expanded' : '']">▼</text>
+        </view>
+        <view v-if="showBgm" class="bgm-body">
+          <view class="form-group">
+            <text class="form-label">选择音乐</text>
+            <picker :range="musicList" range-key="fileName" @change="onBgmPickerChange">
+              <view class="bgm-picker">
+                <text class="bgm-picker-text">{{ currentBgmName }}</text>
+                <text class="bgm-picker-arrow">▼</text>
+              </view>
+            </picker>
+          </view>
+          <view class="style-row" v-if="selectedBgmId">
+            <text class="s-label">音量</text>
+            <slider :value="bgmVolume" :min="0" :max="100" :step="5" activeColor="#667eea" backgroundColor="rgba(255,255,255,0.1)" block-size="18" show-value @change="e => bgmVolume = e.detail.value" class="style-slider" />
+          </view>
+        </view>
       </view>
 
       <button class="action-btn" @tap="handleCompose" :disabled="!videoPath" style="margin-top: 20rpx;">
         剪辑生成
       </button>
+
+      <view v-if="resultVideoPath" class="result-section">
+        <view class="result-header">
+          <text class="result-title">✅ 剪辑完成</text>
+        </view>
+        <video :src="resolveMediaUrl(resultVideoPath)" controls class="result-player" />
+        <view class="result-actions">
+          <view class="result-action-btn" @tap="handleSaveToLibrary">
+            <text class="result-action-text">{{ savedToLibrary ? '✅ 已存入视频库' : '💾 存入视频库' }}</text>
+          </view>
+        </view>
+      </view>
     </view>
 
     <!-- 颜色选择器 -->
@@ -220,8 +254,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, getCurrentInstance } from 'vue'
-import api, { uploadFile } from '../api/index.js'
+import { ref, reactive, computed, watch, onMounted, getCurrentInstance } from 'vue'
+import api from '../api/index.js'
 import { resolveMediaUrl } from '../utils/media.js'
 
 const props = defineProps({ videoPath: { type: String, default: '' } })
@@ -245,6 +279,23 @@ const subtitleDragging = ref(false)
 const coverFrames = ref([])
 const coverFrameIndex = ref(0)
 const coverDragging = ref(false)
+const coverUsed = ref(false)
+const generatedCoverPath = ref('')
+const coverDuration = ref(0.5)
+
+const musicList = ref([])
+const selectedBgmId = ref('')
+const selectedBgmPath = ref('')
+const bgmVolume = ref(30)
+const showBgm = ref(false)
+const resultVideoPath = ref('')
+const savedToLibrary = ref(false)
+
+const currentBgmName = computed(() => {
+  if (!selectedBgmId.value) return '从音乐库选择'
+  const music = musicList.value.find(m => m.id === selectedBgmId.value)
+  return music ? (music.fileName || music.name || '未知音乐') : '从音乐库选择'
+})
 
 const subtitleStyle = reactive({
   fontSize: 20,
@@ -488,6 +539,10 @@ watch(() => props.videoPath, (newPath) => {
   }
 }, { immediate: true })
 
+onMounted(() => {
+  fetchMusicList()
+})
+
 function openColorPicker(target) {
   currentPickerTarget.value = target
   if (target === 'fontColor') currentPickerValue.value = subtitleStyle.fontColor
@@ -527,6 +582,64 @@ function formatTime(seconds) {
   return `${m}:${s < 10 ? '0' : ''}${s}`
 }
 
+function parseSubtitles() {
+  if (alignedSubtitles.value.length > 0) {
+    return alignedSubtitles.value
+  }
+  if (!subtitleText.value.trim()) return []
+  const lines = subtitleText.value.split('\n').filter(l => l.trim())
+  if (lines.length === 0) return []
+
+  const parsed = lines.map(line => {
+    const trimmed = line.trim()
+    const parts = trimmed.split(/\t/)
+    if (parts.length >= 3) {
+      const text = parts[0].trim()
+      const start = parseFloat(parts[1])
+      const end = parseFloat(parts[2])
+      if (text && !isNaN(start) && !isNaN(end)) {
+        return { start, end, text }
+      }
+    }
+    return null
+  }).filter(Boolean)
+
+  if (parsed.length > 0) return parsed
+
+  const avgDuration = 3
+  return lines.map((text, index) => ({
+    start: index * avgDuration,
+    end: (index + 1) * avgDuration,
+    text: text.trim()
+  }))
+}
+
+async function fetchMusicList() {
+  try {
+    const user = getUserId()
+    const result = await api.get('/music-library', user?.id ? { userId: user.id } : {})
+    musicList.value = Array.isArray(result) ? result : (result?.list || result?.data || [])
+  } catch (err) {
+    musicList.value = []
+  }
+}
+
+function handleBgmChange(musicId) {
+  const music = musicList.value.find(m => m.id === musicId)
+  if (music) {
+    selectedBgmPath.value = music.fileUrl || music.filePath || ''
+  }
+}
+
+function onBgmPickerChange(e) {
+  const index = e.detail.value
+  const music = musicList.value[index]
+  if (music) {
+    selectedBgmId.value = music.id
+    selectedBgmPath.value = music.fileUrl || music.filePath || ''
+  }
+}
+
 async function handleAISubtitle() {
   if (!props.videoPath) return
   emit('start-task', 'AI字幕生成', async () => {
@@ -540,11 +653,14 @@ async function handleAISubtitle() {
   })
 }
 
-async function handleGenerateCover() {
-  if (!props.videoPath) return
-  emit('start-task', '封面生成', async () => {
-    await api.post('/clips/generate-cover', {
-      framePath: props.videoPath,
+async function handleUseCover() {
+  if (!coverDisplayUrl.value) return
+  const currentFrame = coverFrames.value[coverFrameIndex.value]
+  if (!currentFrame) { uni.showToast({ title: '请先选择封面帧', icon: 'none' }); return }
+  try {
+    uni.showLoading({ title: '设置封面中...' })
+    const result = await api.post('/clips/generate-cover', {
+      framePath: currentFrame.url,
       text: coverText.value,
       style: {
         fontSize: coverStyle.fontSize,
@@ -556,18 +672,33 @@ async function handleGenerateCover() {
         posY: coverStyle.posY
       }
     })
-    return { success: true, message: '封面生成成功' }
-  })
+    uni.hideLoading()
+    if (result.success && result.coverUrl) {
+      generatedCoverPath.value = result.coverUrl
+      coverUsed.value = true
+      uni.showToast({ title: '封面已设置', icon: 'success' })
+    } else {
+      uni.showToast({ title: result.error || '封面设置失败', icon: 'none' })
+    }
+  } catch (err) {
+    uni.hideLoading()
+    uni.showToast({ title: '封面设置失败', icon: 'none' })
+  }
 }
 
 async function handleCompose() {
   if (!props.videoPath) return
   emit('start-task', '剪辑合成', async () => {
     const user = getUserId()
-    const result = await uploadFile('/clips/compose', props.videoPath, 'video', {
+    const subtitles = parseSubtitles()
+    const payload = {
       videoPath: props.videoPath,
-      subtitles: JSON.stringify(alignedSubtitles.value),
-      subtitleStyle: JSON.stringify({
+      userId: user?.id
+    }
+
+    if (subtitles.length > 0) {
+      payload.subtitles = JSON.stringify(subtitles)
+      payload.subtitleStyle = JSON.stringify({
         fontSize: subtitleStyle.fontSize,
         fontName: subtitleStyle.fontName,
         fontColor: subtitleStyle.fontColor,
@@ -577,16 +708,51 @@ async function handleCompose() {
         backAlpha: subtitleStyle.backAlpha,
         posX: subtitleStyle.posX,
         posY: subtitleStyle.posY
-      }),
-      coverText: coverText.value,
-      userId: user?.id
-    })
+      })
+    }
+
+    if (generatedCoverPath.value) {
+      payload.coverImagePath = generatedCoverPath.value
+      payload.coverDuration = String(coverDuration.value)
+    }
+
+    if (selectedBgmId.value && selectedBgmPath.value) {
+      payload.bgmPath = selectedBgmPath.value
+      payload.bgmVolume = String(bgmVolume.value / 100)
+    }
+
+    const result = await api.post('/clips/compose', payload)
     if (result.success || result.videoUrl) {
-      emit('video-composed', result.videoUrl || props.videoPath)
+      const videoUrl = result.videoUrl || result.videoPath || props.videoPath
+      resultVideoPath.value = videoUrl
+      savedToLibrary.value = false
+      emit('video-composed', videoUrl)
       return { success: true, message: '剪辑合成完成' }
     }
-    return { success: false, message: '剪辑合成失败' }
+    return { success: false, message: result.error || '剪辑合成失败' }
   })
+}
+
+async function handleSaveToLibrary() {
+  if (!resultVideoPath.value || savedToLibrary.value) return
+  try {
+    uni.showLoading({ title: '保存中...' })
+    const user = getUserId()
+    await api.post('/work-library', {
+      userId: user?.id,
+      title: `剪辑作品_${new Date().toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(/\//g, '')}`,
+      videoPath: resultVideoPath.value,
+      sourceType: 'clip',
+      status: 'draft',
+      category: 'default'
+    })
+    savedToLibrary.value = true
+    uni.hideLoading()
+    uni.showToast({ title: '已存入视频库', icon: 'success' })
+  } catch (err) {
+    uni.hideLoading()
+    uni.showToast({ title: '保存失败', icon: 'none' })
+  }
 }
 </script>
 
@@ -672,4 +838,23 @@ async function handleCompose() {
 .font-item { padding: 20rpx 24rpx; border-radius: 12rpx; margin-bottom: 8rpx; background: rgba(255,255,255,0.04); }
 .font-item.selected { background: rgba(102,126,234,0.2); border: 1rpx solid rgba(102,126,234,0.4); }
 .font-item-text { font-size: 28rpx; color: rgba(255,255,255,0.8); }
+
+.bgm-section { margin-top: 20rpx; border: 1rpx solid rgba(255,255,255,0.08); border-radius: 16rpx; overflow: hidden; }
+.bgm-header { display: flex; justify-content: space-between; align-items: center; padding: 20rpx 24rpx; background: rgba(255,255,255,0.03); }
+.bgm-header:active { background: rgba(102,126,234,0.08); }
+.bgm-title { font-size: 26rpx; color: rgba(255,255,255,0.9); font-weight: 500; }
+.bgm-arrow { font-size: 20rpx; color: rgba(255,255,255,0.4); transition: transform 0.25s ease; }
+.bgm-arrow.expanded { transform: rotate(180deg); }
+.bgm-body { padding: 20rpx 24rpx; border-top: 1rpx solid rgba(255,255,255,0.06); }
+.bgm-picker { display: flex; align-items: center; justify-content: space-between; padding: 16rpx 20rpx; background: rgba(255,255,255,0.06); border: 1rpx solid rgba(255,255,255,0.1); border-radius: 12rpx; }
+.bgm-picker-text { font-size: 24rpx; color: rgba(255,255,255,0.8); }
+.bgm-picker-arrow { font-size: 20rpx; color: rgba(255,255,255,0.4); }
+
+.result-section { margin-top: 24rpx; border: 2rpx solid rgba(103,194,58,0.3); border-radius: 16rpx; overflow: hidden; }
+.result-header { padding: 16rpx 24rpx; background: rgba(103,194,58,0.08); }
+.result-title { font-size: 26rpx; color: #67c23a; font-weight: 600; }
+.result-player { width: 100%; display: block; }
+.result-actions { padding: 16rpx 24rpx; display: flex; gap: 16rpx; }
+.result-action-btn { padding: 16rpx 32rpx; background: linear-gradient(135deg,#667eea,#764ba2); border-radius: 12rpx; }
+.result-action-text { font-size: 24rpx; color: #fff; font-weight: 500; }
 </style>

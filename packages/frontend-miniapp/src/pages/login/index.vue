@@ -142,7 +142,7 @@ async function handleLogin() {
 
     uni.showToast({ title: '登录成功', icon: 'success' })
     setTimeout(() => {
-      uni.switchTab({ url: '/pages/index/index' })
+      uni.reLaunch({ url: '/pages/index/index' })
     }, 1000)
   } catch (err) {
     uni.showToast({ title: err.message || '登录失败', icon: 'none' })
@@ -179,7 +179,7 @@ async function handleRegister() {
 
     uni.showToast({ title: '注册成功', icon: 'success' })
     setTimeout(() => {
-      uni.switchTab({ url: '/pages/index/index' })
+      uni.reLaunch({ url: '/pages/index/index' })
     }, 1000)
   } catch (err) {
     uni.showToast({ title: err.message || '注册失败', icon: 'none' })
@@ -214,7 +214,7 @@ function handleWechatLogin() {
 
             uni.showToast({ title: '登录成功', icon: 'success' })
             setTimeout(() => {
-              uni.switchTab({ url: '/pages/index/index' })
+              uni.reLaunch({ url: '/pages/index/index' })
             }, 1000)
           } catch (err) {
             uni.showToast({ title: err.message || '微信登录失败', icon: 'none' })

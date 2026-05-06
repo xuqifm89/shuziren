@@ -76,6 +76,21 @@
           <text class="menu-label">配音库</text>
           <text class="menu-arrow">›</text>
         </view>
+        <view class="menu-item" @tap="goLibrary('music')">
+          <text class="menu-icon">🎶</text>
+          <text class="menu-label">音乐库</text>
+          <text class="menu-arrow">›</text>
+        </view>
+        <view class="menu-item" @tap="goLibrary('copy')">
+          <text class="menu-icon">📝</text>
+          <text class="menu-label">文案库</text>
+          <text class="menu-arrow">›</text>
+        </view>
+        <view class="menu-item" @tap="goLibrary('prompt')">
+          <text class="menu-icon">💡</text>
+          <text class="menu-label">提示词库</text>
+          <text class="menu-arrow">›</text>
+        </view>
         <view class="menu-item" @tap="goLibrary('work')">
           <text class="menu-icon">📽️</text>
           <text class="menu-label">作品库</text>
@@ -171,7 +186,7 @@ function goLibrary(type) {
     goLogin()
     return
   }
-  const nameMap = { voice: '音色库', portrait: '肖像库', dubbing: '配音库', work: '作品库' }
+  const nameMap = { voice: '音色库', portrait: '肖像库', dubbing: '配音库', work: '作品库', music: '音乐库', copy: '文案库', prompt: '提示词库' }
   uni.navigateTo({
     url: `/pages/library-detail/index?type=${type}&name=${encodeURIComponent(nameMap[type] || '素材库')}`
   })

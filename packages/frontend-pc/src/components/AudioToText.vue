@@ -24,6 +24,12 @@
           />
 
           <div class="extract-controls">
+            <div class="platform-icons">
+              <img :src="dyIcon" class="platform-icon" alt="抖音" />
+              <img :src="ksIcon" class="platform-icon" alt="快手" />
+              <img :src="xhsIcon" class="platform-icon" alt="小红书" />
+              <img :src="bzIcon" class="platform-icon" alt="哔哩哔哩" />
+            </div>
             <el-button
               @click="extractCopywriting"
               :loading="isExtracting"
@@ -256,6 +262,10 @@
 import { ref, onMounted, watch, onUnmounted } from 'vue'
 import { useTaskManager } from '../composables/useTaskManager'
 import { getAuthHeaders } from '../utils/api.js'
+import dyIcon from '../assets/dy.png'
+import ksIcon from '../assets/ks.png'
+import xhsIcon from '../assets/xhs.png'
+import bzIcon from '../assets/bz.png'
 
 const emit = defineEmits(['text-generated'])
 const taskManager = useTaskManager()
@@ -704,9 +714,7 @@ const extractCopywriting = async () => {
   console.log('🎬 [AudioToText] 准备调用 executeAfterConfirm...')
 
   taskManager.executeAfterConfirm(async () => {
-    console.log('🚀 [AudioToText] 任务函数开始执行！API 调用即将开始...')
     try {
-      console.log('🛑 [AudioToText] 停止所有现有轮询...')
       stopPolling()
       stopBackgroundCheck()
 
@@ -716,7 +724,6 @@ const extractCopywriting = async () => {
       forbiddenResult.value = null
 
       lastGeneratedTextLength.value = generatedText.value.length
-      console.log('💾 [AudioToText] 准备调用 API...')
 
       const response = await fetch('/api/text/extract-from-video', {
         method: 'POST',
@@ -728,30 +735,20 @@ const extractCopywriting = async () => {
         })
       })
 
-      console.log('📨 [AudioToText] API 响应收到, status:', response.status)
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        console.error('❌ [AudioToText] API 返回错误:', response.status, errorData)
         throw new Error(errorData.error || `请求失败 (${response.status})`)
       }
 
       const data = await response.json()
-      if (data.success && data.text) {
+      if (data.success && data.taskId) {
+        return { success: true, taskId: data.taskId }
+      } else if (data.success && data.text) {
         generatedText.value = data.text
         lastGeneratedTextLength.value = data.text.length
         clearPendingTask()
         stopPolling()
         stopBackgroundCheck()
-
-        console.log('✅ [AudioToText] 文案提取成功，已停止所有后台任务')
-
-        if (data.usingMock) {
-          error.value = '⚠️ 文案提取完成（当前使用模拟数据，请检查RunningHub配置）'
-          isWarning.value = true
-          setTimeout(() => { error.value = ''; isWarning.value = false }, 5000)
-          return { success: true, message: '文案提取完成（当前使用模拟数据）' }
-        }
         return { success: true, message: '文案提取完成' }
       } else {
         throw new Error(data.error || '提取失败')
@@ -1228,7 +1225,21 @@ const addProcessedToCopyLibrary = async () => {
 
 .extract-controls {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+
+.platform-icons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.platform-icon {
+  height: 32px;
+  width: 32px;
+  border-radius: 6px;
+  object-fit: contain;
 }
 
 .creative-buttons {

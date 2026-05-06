@@ -580,7 +580,6 @@ const generateAudio = async () => {
 
   taskManager.executeAfterConfirm(async () => {
     try {
-      console.log('🛑 [TextToSpeech] 停止所有现有轮询...')
       stopPolling()
       stopBackgroundCheck()
 
@@ -588,20 +587,10 @@ const generateAudio = async () => {
       error.value = ''
 
       lastAudioUrlLength.value = audioPath.value.length
-      console.log('💾 [TextToSpeech] 准备调用配音 API...')
-
-      console.log('🔊 开始生成配音...')
-      console.log('📝 [TextToSpeech] 请求参数:', {
-        voiceFileUrl: '' + selectedVoice.value.fileUrl,
-        text: props.inputText?.substring(0, 50) + (props.inputText?.length > 50 ? '...' : ''),
-        emotionDescription: selectedVoice.value.description || '',
-        userId: getCurrentUser()?.id
-      })
 
       let response
       try {
         const reqHeaders = getAuthHeaders({ 'Content-Type': 'application/json' })
-        console.log('🔑 [TextToSpeech] Auth headers:', reqHeaders.Authorization ? `Bearer ${reqHeaders.Authorization.substring(7, 20)}...` : '❌ NO TOKEN')
         response = await fetch('/api/audio/generate-dubbing', {
           method: 'POST',
           headers: reqHeaders,
@@ -613,45 +602,37 @@ const generateAudio = async () => {
           })
         })
       } catch (networkErr) {
-        console.error('❌ [TextToSpeech] 网络请求失败:', networkErr)
         throw new Error(`网络连接失败: ${networkErr.message}`)
       }
 
-      console.log('📨 API响应状态:', response.status)
-
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('❌ [TextToScript] HTTP错误:', response.status, errorText)
         throw new Error(`服务器错误 (${response.status}): ${errorText}`)
       }
 
       const data = await response.json()
-      console.log('📦 API返回数据:', data)
 
-      if (data.success && data.audioUrl) {
+      if (data.success && data.taskId) {
+        return { success: true, taskId: data.taskId }
+      } else if (data.success && data.audioUrl) {
         const fullAudioUrl = '' + data.audioUrl
-        console.log('🔗 完整音频URL:', fullAudioUrl)
         audioPath.value = fullAudioUrl
         audioFilename.value = data.fileName || 'dubbing.wav'
         lastAudioUrlLength.value = fullAudioUrl.length
-        console.log('✅ audioPath已设置:', audioPath.value)
 
         clearPendingTask()
         stopPolling()
         stopBackgroundCheck()
 
-        console.log('✅ [TextToSpeech] 配音生成成功，已停止所有后台任务')
-
         emit('audio-generated', audioPath.value)
         return { success: true, message: '配音生成完成' }
       } else {
-        console.error('❌ [TextToScript] 业务逻辑错误:', data.error)
         throw new Error(data.error || '配音生成失败')
       }
     } catch (err) {
       console.error('❌ [TextToSpeech] 配音生成异常:', err)
       error.value = err.message || '配音生成失败'
-      throw err  // 重新抛出，让 taskManager 捕获
+      throw err
     } finally {
       isGenerating.value = false
     }

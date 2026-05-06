@@ -5,6 +5,7 @@ const avatarRepository = require('../repositories/AvatarRepository');
 const RunningHubAI = require('./runningHubAI');
 const { getDynamicConfig } = require('../config/apiConfig');
 const apiLogService = require('./apiLogService');
+const taskService = require('./taskService');
 
 let cachedRunningHubAI = null;
 let configCacheTimestamp = 0;
@@ -35,9 +36,24 @@ async function getRunningHubAI() {
   }
 }
 
-async function generateVideo(audioPath, avatarId, modelType = 'cloud', userId = null) {
+async function generateVideo(audioPath, avatarId, modelType = 'cloud', userId = null, existingTaskId = null) {
   const startTime = new Date();
   let apiLog = null;
+
+  let task = null;
+  if (existingTaskId) {
+    task = await taskService.getTask(existingTaskId);
+  }
+  if (!task) {
+    try {
+      task = await taskService.createTask({
+        taskType: 'video_generation',
+        inputData: { audioPath: audioPath ? audioPath.substring(0, 50) : '', avatarId }
+      });
+    } catch (e) {
+      console.log('⚠️ 创建任务记录失败（非致命）:', e.message);
+    }
+  }
 
   try {
     apiLog = await apiLogService.createApiLog({
@@ -85,6 +101,8 @@ async function generateVideo(audioPath, avatarId, modelType = 'cloud', userId = 
       throw new Error(result.error);
     }
 
+    if (task) await taskService.updateRunningHubTaskId(task.id, result.taskId);
+
     const taskResult = await runningHubAI.waitForCompletion(result.taskId, 300000);
     if (!taskResult.success || taskResult.status === 'FAILED') {
       throw new Error(taskResult.error || '任务执行失败');
@@ -113,6 +131,8 @@ async function generateVideo(audioPath, avatarId, modelType = 'cloud', userId = 
         startTime,
         taskId: result.taskId,
         rhTaskId: result.taskId,
+        consumeCoins: taskResult.consumeCoins,
+        taskCostTimeMs: taskResult.taskCostTimeMs,
         responseData: { videoPath, outputsCount: taskResult.outputs?.length },
         outputFilePath: videoPath,
         outputFileSize: videoPath ? fs.statSync(videoPath).size : null

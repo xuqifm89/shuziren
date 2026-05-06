@@ -715,32 +715,22 @@ async function handleAiGenerateSubtitle() {
 
   taskManager.executeAfterConfirm(async () => {
     try {
-      console.log('🛑 [VideoClip] 停止所有现有轮询...')
-
       aligning.value = true
-      console.log('💾 [VideoClip] 准备调用字幕生成 API...')
 
       const { data } = await authAxios.post(`${API_BASE}/ai-generate-subtitle`, {
         videoPath: currentVideoPath.value
       })
 
-      console.log('📨 [VideoClip] 字幕API响应:', data)
-
-      if (data.success) {
+      if (data.success && data.taskId) {
+        return { success: true, taskId: data.taskId }
+      } else if (data.success) {
         if (data.text) {
           subtitleText.value = data.text
         }
         if (data.segments && data.segments.length > 0) {
           alignedSubtitles.value = data.segments
         }
-
-        console.log('✅ [VideoClip] 字幕生成成功')
-
-        if (data.usingMock) {
-          return { success: true, message: '字幕生成完成（当前使用模拟数据）' }
-        } else {
-          return { success: true, message: '字幕生成完成' }
-        }
+        return { success: true, message: '字幕生成完成' }
       } else {
         throw new Error(data.error || '字幕生成失败')
       }

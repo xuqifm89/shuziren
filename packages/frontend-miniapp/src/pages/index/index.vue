@@ -132,6 +132,10 @@
         <MaterialLibrary @back="goBack" @open-library="handleOpenLibrary" />
       </template>
 
+      <template v-else-if="activePage === 'libraryView'">
+        <LibraryView :library-key="currentLibraryKey" @back="handleLibraryViewBack" />
+      </template>
+
       <template v-else-if="activePage === 'my'">
         <view class="mobile-settings-wrapper">
           <view class="mobile-crud-header">
@@ -202,6 +206,7 @@ const videoLibraryList = ref([])
 const showClipVideoLibraryDropdown = ref(false)
 const showPublishVideoLibraryDropdown = ref(false)
 const currentLibrary = ref('')
+const currentLibraryKey = ref('')
 const taskManager = useTaskManager()
 
 const showTaskDialog = ref(false)
@@ -277,10 +282,16 @@ function handleBottomNavClick(menu) {
 }
 
 function handleOpenLibrary(library) {
-  if (library?.table) {
-    activeMenu.value = library.name
-    activePage.value = 'home'
+  if (library?.key) {
+    currentLibraryKey.value = library.key
+    activePage.value = 'libraryView'
   }
+}
+
+function handleLibraryViewBack() {
+  currentLibraryKey.value = ''
+  activePage.value = 'materialLibrary'
+  activeMenu.value = '素材库'
 }
 
 function handleTextGenerated(text) { generatedText.value = text }

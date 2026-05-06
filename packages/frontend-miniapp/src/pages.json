@@ -64,31 +64,5 @@
     "navigationBarTitleText": "拾光引擎",
     "navigationBarBackgroundColor": "#0f0f23",
     "backgroundColor": "#0f0f23"
-  },
-  "tabBar": {
-    "color": "#999999",
-    "selectedColor": "#667eea",
-    "borderStyle": "black",
-    "backgroundColor": "#0f0f23",
-    "list": [
-      {
-        "pagePath": "pages/index/index",
-        "text": "首页",
-        "iconPath": "static/tab-home.png",
-        "selectedIconPath": "static/tab-home-active.png"
-      },
-      {
-        "pagePath": "pages/library/index",
-        "text": "素材库",
-        "iconPath": "static/tab-library.png",
-        "selectedIconPath": "static/tab-library-active.png"
-      },
-      {
-        "pagePath": "pages/mine/index",
-        "text": "我的",
-        "iconPath": "static/tab-mine.png",
-        "selectedIconPath": "static/tab-mine-active.png"
-      }
-    ]
   }
 }

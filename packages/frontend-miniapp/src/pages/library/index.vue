@@ -47,7 +47,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import api from '../../api/index.js'
+import api, { uploadFile } from '../../api/index.js'
 import { resolveMediaUrl } from '../../utils/media.js'
 import MediaPreview from '../../components/MediaPreview.vue'
 
@@ -79,11 +79,11 @@ const activeItems = computed(() => {
 const apiMap = {
   voice: { list: api.library.voiceLibrary, delete: (id) => api.voices.delete(id), upload: (fp) => api.voices.upload(fp) },
   portrait: { list: api.library.portraitLibrary, delete: (id) => api.avatars.delete(id), upload: (fp) => api.avatars.upload(fp) },
-  dubbing: { list: api.library.dubbingLibrary, delete: (id) => api.dubbing.delete(id) },
-  music: { list: api.library.musicLibrary, delete: (id) => api.delete(`/music-library/${id}`) },
+  dubbing: { list: api.library.dubbingLibrary, delete: (id) => api.dubbing.delete(id), upload: (fp) => uploadFile('/dubbing-library/upload', fp, 'audio') },
+  music: { list: api.library.musicLibrary, delete: (id) => api.delete(`/music-library/${id}`), upload: (fp) => uploadFile('/music-library/upload', fp, 'audio') },
   copy: { list: api.library.copyLibrary, delete: (id) => api.delete(`/copy-library/${id}`) },
   prompt: { list: api.library.promptLibrary, delete: (id) => api.delete(`/prompt-library/${id}`) },
-  work: { list: api.library.workLibrary, delete: (id) => api.video.delete(id) }
+  work: { list: api.library.workLibrary, delete: (id) => api.video.delete(id), upload: (fp) => uploadFile('/work-library/upload', fp, 'video') }
 }
 
 onMounted(() => {
@@ -173,7 +173,7 @@ async function deleteItem(item) {
 function handleUpload() {
   const key = activeCategory.value
   const isImage = key === 'portrait'
-  const isAudio = key === 'voice' || key === 'music'
+  const isAudio = key === 'voice' || key === 'music' || key === 'dubbing'
   const isVideo = key === 'work'
 
   if (isImage) {
@@ -226,6 +226,26 @@ function handleUpload() {
     // #ifndef MP-WEIXIN
     uni.showToast({ title: '请在PC端上传音频文件', icon: 'none' })
     // #endif
+  } else if (isVideo) {
+    uni.chooseVideo({
+      sourceType: ['album', 'camera'],
+      success: async (res) => {
+        const filePath = res.tempFilePath
+        try {
+          uni.showLoading({ title: '上传中...' })
+          const apiConfig = apiMap[key]
+          if (apiConfig.upload) await apiConfig.upload(filePath)
+          delete allItems.value[key]
+          loadItems(key)
+          loadCounts()
+          uni.hideLoading()
+          uni.showToast({ title: '上传成功', icon: 'success' })
+        } catch (e) {
+          uni.hideLoading()
+          uni.showToast({ title: '上传失败', icon: 'none' })
+        }
+      }
+    })
   } else {
     uni.navigateTo({
       url: `/pages/library-detail/index?type=${key}&name=${encodeURIComponent(activeLibrary.value.name)}`

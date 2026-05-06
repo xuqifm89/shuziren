@@ -194,8 +194,8 @@ async function getApiStatistics(query = {}) {
   const totalCalls = await ApiLog.count({ where });
   
   // 成功/失败统计
-  const successCalls = await ApiLog.count({ ...where, isSuccess: true });
-  const failedCalls = await ApiLog.count({ ...where, isSuccess: false });
+  const successCalls = await ApiLog.count({ where: { ...where, isSuccess: true } });
+  const failedCalls = await ApiLog.count({ where: { ...where, isSuccess: false } });
   
   // 按平台统计
   const platformStats = await ApiLog.findAll({

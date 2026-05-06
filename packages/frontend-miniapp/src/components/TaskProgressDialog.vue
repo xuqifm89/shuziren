@@ -1,5 +1,5 @@
 <template>
-  <view v-if="visible" class="task-dialog-mask" @tap.self="handleClose">
+  <view v-if="visible" class="task-dialog-mask">
     <view class="task-dialog" @tap.stop>
       <view class="dialog-header">
         <text class="dialog-title">{{ taskName || '任务进度' }}</text>
@@ -19,6 +19,7 @@
             <text class="progress-percent">{{ Math.floor(progress) }}%</text>
           </view>
           <text class="progress-hint">{{ progressMessage || '处理中...' }}</text>
+          <text class="progress-warn">任务处理中，请勿关闭页面</text>
         </view>
         <view v-else-if="status === 'success'" class="status-success">
           <text class="result-icon">✅</text>
@@ -38,18 +39,13 @@
             <text class="btn-text">确认提交</text>
           </view>
         </template>
-        <template v-else-if="status === 'processing'">
-          <view class="dialog-btn cancel" @tap="handleCancel">
-            <text class="btn-text">{{ isCancelling ? '取消中...' : '取消任务' }}</text>
-          </view>
-        </template>
         <template v-else-if="status === 'success'">
-          <view class="dialog-btn confirm" @tap="handleConfirm">
+          <view class="dialog-btn confirm" @tap="handleClose">
             <text class="btn-text">确认</text>
           </view>
         </template>
         <template v-else-if="status === 'error'">
-          <view class="dialog-btn confirm" @tap="handleConfirm">
+          <view class="dialog-btn confirm" @tap="handleClose">
             <text class="btn-text">关闭</text>
           </view>
         </template>
@@ -59,8 +55,6 @@
 </template>
 
 <script setup>
-import { watch } from 'vue'
-
 const props = defineProps({
   visible: { type: Boolean, default: false },
   taskType: { type: String, default: '' },
@@ -75,21 +69,9 @@ const props = defineProps({
 
 const emit = defineEmits(['confirm', 'cancel', 'close', 'update:visible'])
 
-let autoCloseTimer = null
-
-watch(() => props.status, (newStatus) => {
-  if (autoCloseTimer) { clearTimeout(autoCloseTimer); autoCloseTimer = null }
-  if (newStatus === 'success') {
-    autoCloseTimer = setTimeout(() => { emit('close'); emit('update:visible', false) }, 3000)
-  }
-})
-
 function handleConfirm() { emit('confirm') }
 function handleCancel() { emit('cancel') }
-function handleClose() {
-  if (autoCloseTimer) { clearTimeout(autoCloseTimer); autoCloseTimer = null }
-  emit('close'); emit('update:visible', false)
-}
+function handleClose() { emit('close'); emit('update:visible', false) }
 </script>
 
 <style scoped>
@@ -108,6 +90,7 @@ function handleClose() {
 .progress-fill { height: 100%; background: linear-gradient(135deg,#667eea,#764ba2); border-radius: 8rpx; transition: width 0.5s ease; }
 .progress-percent { font-size: 26rpx; color: rgba(255,255,255,0.7); min-width: 72rpx; text-align: right; }
 .progress-hint { font-size: 24rpx; color: rgba(255,255,255,0.5); display: block; }
+.progress-warn { font-size: 22rpx; color: rgba(241,196,15,0.7); display: block; margin-top: 16rpx; }
 .result-icon { font-size: 64rpx; display: block; margin-bottom: 16rpx; }
 .result-text { font-size: 28rpx; color: rgba(255,255,255,0.8); display: block; line-height: 1.6; }
 .result-text.error { color: #f56c6c; word-break: break-all; }

@@ -3,6 +3,9 @@ const router = express.Router();
 const { transcribeAudio, rewriteText, checkForbidden, generateText, extractTopics } = require('../services/textService');
 const { getMockTranscription } = require('../services/mockASR');
 const { parseDouyinVideo } = require('../services/douyinService');
+const { parseKuaishouVideo } = require('../services/kuaishouService');
+const { parseXiaohongshuVideo } = require('../services/xiaohongshuService');
+const { parseBilibiliVideo } = require('../services/bilibiliService');
 const SiliconFlowAI = require('../services/siliconFlowAI');
 const apiConfig = require('../config/apiConfig');
 const axios = require('axios');
@@ -10,6 +13,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 const fileService = require('../services/fileService');
 const { getFfmpegPath } = require('../utils/ffmpegHelper');
+const taskService = require('../services/taskService');
 
 router.post('/transcribe', async (req, res) => {
   try {
@@ -162,15 +166,14 @@ router.post('/extract-from-video', async (req, res) => {
         console.warn('⚠️ 测试视频不存在，跳过视频处理');
         const testAudioPath = './output/test_audio.wav';
         if (fileService.fileExists(testAudioPath)) {
-          const result = await transcribeAudio(testAudioPath, modelType, asrModel, roleSplit, userId);
-          res.json({
-            success: true,
-            text: result.text,
-            segments: result.segments
-          });
-          return;
+          try {
+            const result = await transcribeAudio(testAudioPath, modelType, asrModel, roleSplit, userId, null);
+            return res.json({ text: result.text, success: true });
+          } catch (e) {
+            return res.status(500).json({ error: e.message });
+          }
         } else {
-          throw new Error('测试视频/音频不存在，请先配置测试文件');
+          return res.status(400).json({ error: '测试视频/音频不存在，请先配置测试文件' });
         }
       }
     }
@@ -191,40 +194,56 @@ router.post('/extract-from-video', async (req, res) => {
           console.log('📱 解析抖音视频...');
           try {
             const douyinResult = await parseDouyinVideo(url);
-
             if (!douyinResult.success || !douyinResult.localVideoPath) {
               throw new Error('抖音解析失败');
             }
-
             videoPath = douyinResult.localVideoPath;
             console.log(`✅ 视频已下载: ${videoPath}`);
           } catch (douyinError) {
             console.error('❌ 抖音解析失败:', douyinError.message);
-            throw new Error('抖音解析失败: ' + douyinError.message);
+            return res.status(500).json({ error: '抖音解析失败: ' + douyinError.message });
+          }
+        } else if (url.includes('kuaishou.com') || url.includes('gifshow.com') || url.includes('kwai.com')) {
+          console.log('📱 解析快手视频...');
+          try {
+            const kuaishouResult = await parseKuaishouVideo(url);
+            if (!kuaishouResult.success || !kuaishouResult.localVideoPath) {
+              throw new Error('快手解析失败');
+            }
+            videoPath = kuaishouResult.localVideoPath;
+            console.log(`✅ 视频已下载: ${videoPath}`);
+          } catch (kuaishouError) {
+            console.error('❌ 快手解析失败:', kuaishouError.message);
+            return res.status(500).json({ error: '快手解析失败: ' + kuaishouError.message });
+          }
+        } else if (url.includes('xiaohongshu.com') || url.includes('xhslink.com')) {
+          console.log('📱 解析小红书视频...');
+          try {
+            const xhsResult = await parseXiaohongshuVideo(url);
+            if (!xhsResult.success || !xhsResult.localVideoPath) {
+              throw new Error('小红书解析失败');
+            }
+            videoPath = xhsResult.localVideoPath;
+            console.log(`✅ 视频已下载: ${videoPath}`);
+          } catch (xhsError) {
+            console.error('❌ 小红书解析失败:', xhsError.message);
+            return res.status(500).json({ error: '小红书解析失败: ' + xhsError.message });
+          }
+        } else if (url.includes('bilibili.com') || url.includes('b23.tv')) {
+          console.log('📱 解析哔哩哔哩视频...');
+          try {
+            const biliResult = await parseBilibiliVideo(url);
+            if (!biliResult.success || !biliResult.localVideoPath) {
+              throw new Error('哔哩哔哩解析失败');
+            }
+            videoPath = biliResult.localVideoPath;
+            console.log(`✅ 视频已下载: ${videoPath}`);
+          } catch (biliError) {
+            console.error('❌ 哔哩哔哩解析失败:', biliError.message);
+            return res.status(500).json({ error: '哔哩哔哩解析失败: ' + biliError.message });
           }
         } else {
-          console.log('📥 下载网络视频...');
-          try {
-            const response = await axios.get(url, {
-              responseType: 'stream',
-              timeout: 60000
-            });
-
-            const outputDir = './output';
-            fileService.ensureDir(outputDir);
-
-            videoPath = path.join(outputDir, `video_${Date.now()}.mp4`);
-            const writer = fileService.createWriteStream(videoPath);
-
-            await new Promise((resolve, reject) => {
-              response.data.pipe(writer);
-              writer.on('finish', resolve);
-              writer.on('error', reject);
-            });
-          } catch (downloadError) {
-            console.error('❌ 视频下载失败:', downloadError.message);
-            throw new Error('视频下载失败: ' + downloadError.message);
-          }
+          return res.status(400).json({ error: '暂时不支持此平台的视频链接，目前支持：抖音、快手、小红书、哔哩哔哩' });
         }
       } else {
         videoPath = url;
@@ -233,7 +252,7 @@ router.post('/extract-from-video', async (req, res) => {
 
     if (!fileService.fileExists(videoPath)) {
       console.error('❌ 视频文件不存在:', videoPath);
-      throw new Error('视频文件不存在: ' + videoPath);
+      return res.status(400).json({ error: '视频文件不存在: ' + videoPath });
     }
 
     console.log('🔊 提取音频...');
@@ -246,7 +265,7 @@ router.post('/extract-from-video', async (req, res) => {
     try {
       const ffmpegPath = getFfmpegPath();
       if (!ffmpegPath) {
-        throw new Error('ffmpeg 未安装或未找到，请将 ffmpeg 放到项目根目录或 backend 目录下，或安装到系统 PATH 中');
+        throw new Error('ffmpeg 未安装或未找到');
       }
       console.log(`🎬 使用 ffmpeg: ${ffmpegPath}`);
       execSync(`"${ffmpegPath}" -y -i "${videoPath}" -vn -acodec pcm_s16le -ar 44100 -ac 1 "${audioPath}"`, {
@@ -265,41 +284,17 @@ router.post('/extract-from-video', async (req, res) => {
     const audioInput = audioExtracted ? audioPath : videoPath;
     console.log(`🎤 开始语音转文字: ${audioInput}`);
 
-    let usingMock = false;
-    let result;
-
     try {
-      result = await transcribeAudio(audioInput, modelType, asrModel, roleSplit, userId);
+      const result = await transcribeAudio(audioInput, modelType, asrModel, roleSplit, userId, null);
+      console.log('✅ 文案提取完成');
+      res.json({ text: result.text, success: true });
     } catch (asrError) {
-      console.warn('⚠️ RunningHub ASR 失败，使用降级方案:', asrError.message);
-      usingMock = true;
-      const mockText = getMockTranscription(path.basename(audioInput));
-      result = { text: mockText, segments: [] };
+      console.warn('⚠️ ASR 失败:', asrError.message);
+      res.status(500).json({ error: asrError.message });
     }
-
-    console.log('✅ 文案提取完成');
-
-    console.log('\n' + '═'.repeat(60));
-    console.log('📤 返回结果:');
-    console.log('═'.repeat(60));
-    console.log('success:', true);
-    console.log('usingMock:', usingMock);
-    console.log('text长度:', result.text.length);
-    console.log('text预览:', result.text.substring(0, 100));
-    console.log('═'.repeat(60) + '\n');
-
-    res.json({
-      success: true,
-      text: result.text,
-      segments: result.segments,
-      videoPath: videoPath,
-      audioPath: audioPath,
-      usingMock
-    });
 
   } catch (error) {
     console.error('\n❌ 文案提取失败:', error);
-    console.error('═'.repeat(60) + '\n');
     res.status(500).json({ error: error.message });
   }
 });

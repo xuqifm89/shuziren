@@ -62,7 +62,7 @@ const updateUserRules = [
 const changePasswordRules = [
   require('express-validator').param('id')
     .notEmpty().withMessage('用户ID不能为空'),
-  require('express-validator').body('currentPassword')
+  require('express-validator').body('oldPassword')
     .notEmpty().withMessage('当前密码不能为空'),
   require('express-validator').body('newPassword')
     .notEmpty().withMessage('新密码不能为空')

@@ -24,17 +24,28 @@
     <button class="action-btn" @tap="handleGenerate" :disabled="!inputText || !selectedVoice">
       开始生成
     </button>
-    <view v-if="audioPath" class="result-section">
-      <view class="result-header">
-        <text class="result-label">配音结果</text>
-        <text class="result-btn" @tap="playAudio">播放</text>
+    <view class="audio-player">
+      <view class="player-header">
+        <text class="player-label">配音结果</text>
+        <text class="player-time" v-if="audioPath">{{ currentTimeText }} / {{ durationText }}</text>
+      </view>
+      <view v-if="audioPath" class="player-controls">
+        <text class="player-btn" @tap="togglePlay">{{ isPlaying ? '⏸' : '▶' }}</text>
+        <view class="player-progress-wrap" @tap="seekAudio">
+          <view class="player-progress-bar">
+            <view class="player-progress-fill" :style="{ width: progressPercent + '%' }"></view>
+          </view>
+        </view>
+      </view>
+      <view v-else class="player-empty">
+        <text class="player-empty-text">生成配音后将在此播放</text>
       </view>
     </view>
   </view>
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
 import api, { uploadFile } from '../api/index.js'
 import { resolveMediaUrl } from '../utils/media.js'
 
@@ -46,9 +57,24 @@ const voiceList = ref([])
 const selectedVoice = ref(null)
 const voiceDescription = ref('')
 const isGenerating = ref(false)
-const audioPath = ref('')
+const audioPath = ref(uni.getStorageSync('tts_audioPath') || '')
+const isPlaying = ref(false)
+const currentTime = ref(0)
+const duration = ref(0)
+
+const progressPercent = computed(() => duration.value ? (currentTime.value / duration.value) * 100 : 0)
+const currentTimeText = computed(() => formatTime(currentTime.value))
+const durationText = computed(() => formatTime(duration.value))
+
+function formatTime(sec) {
+  if (!sec || isNaN(sec)) return '0:00'
+  const m = Math.floor(sec / 60)
+  const s = Math.floor(sec % 60)
+  return `${m}:${s < 10 ? '0' : ''}${s}`
+}
 
 watch(() => props.inputText, (val) => { if (val) inputText.value = val })
+watch(audioPath, (val) => { uni.setStorageSync('tts_audioPath', val) })
 
 function getUserId() {
   const userInfo = uni.getStorageSync('userInfo')
@@ -65,10 +91,49 @@ onMounted(async () => {
 })
 
 let innerAudioCtx = null
+
+function initPlayer() {
+  if (innerAudioCtx) { innerAudioCtx.stop(); innerAudioCtx.destroy(); innerAudioCtx = null }
+  if (!audioPath.value) return
+  innerAudioCtx = uni.createInnerAudioContext()
+  innerAudioCtx.src = resolveMediaUrl(audioPath.value)
+  innerAudioCtx.onTimeUpdate(() => {
+    currentTime.value = innerAudioCtx.currentTime
+    duration.value = innerAudioCtx.duration
+  })
+  innerAudioCtx.onPlay(() => { isPlaying.value = true })
+  innerAudioCtx.onPause(() => { isPlaying.value = false })
+  innerAudioCtx.onStop(() => { isPlaying.value = false })
+  innerAudioCtx.onEnded(() => { isPlaying.value = false; currentTime.value = 0 })
+  innerAudioCtx.onError(() => { isPlaying.value = false })
+}
+
+function togglePlay() {
+  if (!innerAudioCtx) { initPlayer(); innerAudioCtx.play(); return }
+  if (isPlaying.value) { innerAudioCtx.pause() } else { innerAudioCtx.play() }
+}
+
+function seekAudio(e) {
+  if (!innerAudioCtx || !duration.value) return
+  const detail = e.detail || e
+  const x = detail.x || (detail.touches && detail.touches[0] && detail.touches[0].clientX) || 0
+  const query = uni.createSelectorQuery().select('.player-progress-wrap')
+  query.boundingClientRect((rect) => {
+    if (rect) {
+      const percent = Math.max(0, Math.min(1, (x - rect.left) / rect.width))
+      innerAudioCtx.seek(percent * duration.value)
+    }
+  }).exec()
+}
+
 function playVoice(v) {
-  if (innerAudioCtx) { innerAudioCtx.stop(); innerAudioCtx = null }
+  if (innerAudioCtx) { innerAudioCtx.stop(); isPlaying.value = false }
   const url = v.fileUrl || v.filePath
-  if (url) { innerAudioCtx = uni.createInnerAudioContext(); innerAudioCtx.src = resolveMediaUrl(url); innerAudioCtx.play() }
+  if (url) {
+    const ctx = uni.createInnerAudioContext()
+    ctx.src = resolveMediaUrl(url)
+    ctx.play()
+  }
 }
 
 function handleUploadVoice() {
@@ -132,17 +197,20 @@ async function handleGenerate() {
     const url = result.audioUrl || result.data?.audioUrl || result.url || result.fileUrl || ''
     if (url) {
       audioPath.value = url
+      isPlaying.value = false
+      currentTime.value = 0
+      duration.value = 0
+      if (innerAudioCtx) { innerAudioCtx.stop(); innerAudioCtx.destroy(); innerAudioCtx = null }
       emit('audio-generated', url)
       return { success: true, message: '配音生成成功' }
     }
-    return { success: false, message: '配音处理中，请稍后在配音库查看' }
+    return { success: false, message: '配音生成失败' }
   })
 }
 
-function playAudio() {
-  if (innerAudioCtx) { innerAudioCtx.stop(); innerAudioCtx = null }
-  if (audioPath.value) { innerAudioCtx = uni.createInnerAudioContext(); innerAudioCtx.src = resolveMediaUrl(audioPath.value); innerAudioCtx.play() }
-}
+onUnmounted(() => {
+  if (innerAudioCtx) { innerAudioCtx.stop(); innerAudioCtx.destroy(); innerAudioCtx = null }
+})
 </script>
 
 <style scoped>
@@ -152,7 +220,7 @@ function playAudio() {
 .form-label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12rpx; }
 .form-action { font-size: 24rpx; color: #667eea; }
 .form-input { width: 100%; height: 72rpx; background: rgba(255,255,255,0.06); border: 1rpx solid rgba(255,255,255,0.12); border-radius: 12rpx; padding: 0 20rpx; font-size: 26rpx; color: #fff; box-sizing: border-box; }
-.form-textarea { width: 100%; height: 180rpx; background: rgba(255,255,255,0.06); border: 1rpx solid rgba(255,255,255,0.12); border-radius: 12rpx; padding: 20rpx; font-size: 26rpx; color: #fff; box-sizing: border-box; }
+.form-textarea { width: 100%; height: 320rpx; background: rgba(255,255,255,0.06); border: 1rpx solid rgba(255,255,255,0.12); border-radius: 12rpx; padding: 20rpx; font-size: 26rpx; color: #fff; box-sizing: border-box; overflow-y: auto; }
 .horizontal-scroll { white-space: nowrap; }
 .voice-card { display: inline-flex; align-items: center; padding: 16rpx 24rpx; margin-right: 12rpx; background: rgba(255,255,255,0.04); border: 1rpx solid rgba(255,255,255,0.08); border-radius: 12rpx; }
 .voice-card.active { background: rgba(102,126,234,0.15); border-color: rgba(102,126,234,0.3); }
@@ -162,8 +230,15 @@ function playAudio() {
 .empty-text { font-size: 24rpx; color: rgba(255,255,255,0.3); }
 .action-btn { width: 100%; height: 80rpx; background: linear-gradient(135deg,#667eea,#764ba2); color: #fff; font-size: 28rpx; font-weight: 600; border-radius: 12rpx; border: none; }
 .action-btn[disabled] { opacity: 0.5; }
-.result-section { margin-top: 20rpx; background: rgba(0,0,0,0.2); border-radius: 12rpx; padding: 20rpx; border: 1rpx solid rgba(102,126,234,0.2); }
-.result-header { display: flex; justify-content: space-between; align-items: center; }
-.result-label { font-size: 24rpx; color: #667eea; font-weight: 600; }
-.result-btn { font-size: 22rpx; color: rgba(255,255,255,0.6); padding: 4rpx 12rpx; background: rgba(255,255,255,0.06); border-radius: 6rpx; }
+.audio-player { margin-top: 24rpx; background: rgba(0,0,0,0.3); border-radius: 16rpx; padding: 24rpx; border: 1rpx solid rgba(102,126,234,0.2); }
+.player-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20rpx; }
+.player-label { font-size: 24rpx; color: #667eea; font-weight: 600; }
+.player-time { font-size: 22rpx; color: rgba(255,255,255,0.5); }
+.player-controls { display: flex; align-items: center; gap: 20rpx; }
+.player-btn { font-size: 48rpx; color: #667eea; width: 72rpx; height: 72rpx; display: flex; align-items: center; justify-content: center; background: rgba(102,126,234,0.15); border-radius: 50%; flex-shrink: 0; }
+.player-progress-wrap { flex: 1; height: 40rpx; display: flex; align-items: center; }
+.player-progress-bar { width: 100%; height: 8rpx; background: rgba(255,255,255,0.1); border-radius: 4rpx; overflow: hidden; position: relative; }
+.player-progress-fill { height: 100%; background: linear-gradient(135deg,#667eea,#764ba2); border-radius: 4rpx; transition: width 0.3s ease; }
+.player-empty { padding: 32rpx 0; text-align: center; }
+.player-empty-text { font-size: 24rpx; color: rgba(255,255,255,0.3); }
 </style>

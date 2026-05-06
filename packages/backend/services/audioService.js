@@ -137,6 +137,8 @@ async function generateAudio(text, voiceId, modelType = 'cloud', userId = null) 
         startTime,
         taskId: result.taskId,
         rhTaskId: result.taskId,
+        consumeCoins: taskResult.consumeCoins,
+        taskCostTimeMs: taskResult.taskCostTimeMs,
         responseData: { audioPath, outputsCount: taskResult.outputs?.length },
         outputFilePath: audioPath,
         outputFileSize: audioPath ? fs.statSync(audioPath).size : null
@@ -172,7 +174,7 @@ async function generateAudio(text, voiceId, modelType = 'cloud', userId = null) 
  * @param {string|null} userId - 用户 ID（用于记录）
  * @returns {object} 包含音频文件路径的结果对象
  */
-async function generateDubbing(voiceFilePath, text, emotionDescription = '', userId = null) {
+async function generateDubbing(voiceFilePath, text, emotionDescription = '', userId = null, existingTaskId = null) {
   console.log('🎤 开始配音合成（等同于 TTS 文字转音频）');
   console.log('   声音文件:', voiceFilePath);
   console.log('   文本:', text.substring(0, 50) + (text.length > 50 ? '...' : ''));
@@ -180,13 +182,18 @@ async function generateDubbing(voiceFilePath, text, emotionDescription = '', use
   console.log('   用户ID:', userId);
 
   let task = null;
-  try {
-    task = await taskService.createTask({
-      taskType: 'audio_generation',
-      inputData: { text: text.substring(0, 100), emotionDescription }
-    });
-  } catch (e) {
-    console.log('⚠️ 创建任务记录失败（非致命）:', e.message);
+  if (existingTaskId) {
+    task = await taskService.getTask(existingTaskId);
+  }
+  if (!task) {
+    try {
+      task = await taskService.createTask({
+        taskType: 'audio_generation',
+        inputData: { text: text.substring(0, 100), emotionDescription }
+      });
+    } catch (e) {
+      console.log('⚠️ 创建任务记录失败（非致命）:', e.message);
+    }
   }
 
   const runningHubAI = await getRunningHubAI();
@@ -254,6 +261,7 @@ async function generateDubbing(voiceFilePath, text, emotionDescription = '', use
   }
 
   console.log('✅ 任务已创建:', result.taskId);
+  if (task) await taskService.updateRunningHubTaskId(task.id, result.taskId);
   console.log('🔌 等待任务完成...');
   if (task) await taskService.updateProgress(task.id, 40, 'AI模型处理中...');
 
@@ -335,20 +343,25 @@ async function generateDubbing(voiceFilePath, text, emotionDescription = '', use
   return { audioUrl: fileUrl, success: true, dubbing, taskId: task ? task.id : null };
 }
 
-async function generateImageToVideo(imageFileUrl, audioFileUrl, userId = null) {
+async function generateImageToVideo(imageFileUrl, audioFileUrl, userId = null, existingTaskId = null) {
   console.log('🎬 开始图片生成视频');
   console.log('   图片文件:', imageFileUrl);
   console.log('   音频文件:', audioFileUrl);
   console.log('   用户ID:', userId);
 
   let task = null;
-  try {
-    task = await taskService.createTask({
-      taskType: 'video_generation',
-      inputData: { imageFileUrl, audioFileUrl }
-    });
-  } catch (e) {
-    console.log('⚠️ 创建任务记录失败（非致命）:', e.message);
+  if (existingTaskId) {
+    task = await taskService.getTask(existingTaskId);
+  }
+  if (!task) {
+    try {
+      task = await taskService.createTask({
+        taskType: 'video_generation',
+        inputData: { imageFileUrl, audioFileUrl }
+      });
+    } catch (e) {
+      console.log('⚠️ 创建任务记录失败（非致命）:', e.message);
+    }
   }
 
   const runningHubAI = await getRunningHubAI();
@@ -483,6 +496,7 @@ async function generateImageToVideo(imageFileUrl, audioFileUrl, userId = null) {
   }
 
   console.log('✅ 任务已创建:', result.taskId);
+  if (task) await taskService.updateRunningHubTaskId(task.id, result.taskId);
   console.log('🔌 等待任务完成...');
   if (task) await taskService.updateProgress(task.id, 40, 'AI模型处理中...');
 
@@ -565,20 +579,25 @@ async function generateImageToVideo(imageFileUrl, audioFileUrl, userId = null) {
   return { videoUrl: fileUrl, success: true, work, taskId: task ? task.id : null };
 }
 
-async function generateVideoToVideo(videoFileUrl, audioFileUrl, userId = null) {
+async function generateVideoToVideo(videoFileUrl, audioFileUrl, userId = null, existingTaskId = null) {
   console.log('🎬🎬🎬 开始视频生成视频');
   console.log('   视频文件:', videoFileUrl);
   console.log('   音频文件:', audioFileUrl);
   console.log('   用户ID:', userId);
 
   let task = null;
-  try {
-    task = await taskService.createTask({
-      taskType: 'video_generation',
-      inputData: { videoFileUrl, audioFileUrl }
-    });
-  } catch (e) {
-    console.log('⚠️ 创建任务记录失败（非致命）:', e.message);
+  if (existingTaskId) {
+    task = await taskService.getTask(existingTaskId);
+  }
+  if (!task) {
+    try {
+      task = await taskService.createTask({
+        taskType: 'video_generation',
+        inputData: { videoFileUrl, audioFileUrl }
+      });
+    } catch (e) {
+      console.log('⚠️ 创建任务记录失败（非致命）:', e.message);
+    }
   }
 
   const runningHubAI = await getRunningHubAI();
@@ -667,6 +686,7 @@ async function generateVideoToVideo(videoFileUrl, audioFileUrl, userId = null) {
   }
 
   console.log('✅ 任务已创建:', result.taskId);
+  if (task) await taskService.updateRunningHubTaskId(task.id, result.taskId);
   console.log('🔌 等待任务完成...');
   if (task) await taskService.updateProgress(task.id, 40, 'AI模型处理中...');
 

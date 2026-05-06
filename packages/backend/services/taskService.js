@@ -1,5 +1,7 @@
 const Task = require('../models/Task');
 const wsManager = require('../websocket/WebSocketManager');
+const RunningHubAI = require('./runningHubAI');
+const { getDynamicConfig } = require('../config/apiConfig');
 
 class TaskService {
   async createTask(data) {
@@ -41,6 +43,10 @@ class TaskService {
     const task = await Task.findByPk(taskId);
     if (!task) return null;
 
+    if (task.status === 'cancelled') {
+      return task;
+    }
+
     await task.update({
       status: 'success',
       progress: 100,
@@ -61,6 +67,10 @@ class TaskService {
     const task = await Task.findByPk(taskId);
     if (!task) return null;
 
+    if (task.status === 'cancelled' || task.status === 'success') {
+      return task;
+    }
+
     await task.update({
       status: 'error',
       errorMessage: errorMessage || '任务执行失败'
@@ -79,6 +89,21 @@ class TaskService {
     const task = await Task.findByPk(taskId);
     if (!task) return null;
 
+    if (task.status === 'cancelled' || task.status === 'success') {
+      return task;
+    }
+
+    if (task.runningHubTaskId) {
+      try {
+        const config = await getDynamicConfig();
+        const runningHubAI = new RunningHubAI(config.runningHub.apiKey);
+        const cancelResult = await runningHubAI.cancelTask(task.runningHubTaskId);
+        console.log(`📡 RunningHub 取消结果:`, cancelResult.success ? '成功' : cancelResult.error);
+      } catch (err) {
+        console.error(`⚠️ 取消 RunningHub 任务异常（非致命）:`, err.message);
+      }
+    }
+
     await task.update({
       status: 'cancelled',
       errorMessage: '用户取消任务'
@@ -94,6 +119,14 @@ class TaskService {
 
   async getTask(taskId) {
     return await Task.findByPk(taskId);
+  }
+
+  async updateRunningHubTaskId(taskId, runningHubTaskId) {
+    const task = await Task.findByPk(taskId);
+    if (!task) return null;
+
+    await task.update({ runningHubTaskId });
+    return task;
   }
 
   async getTasksByStatus(status) {

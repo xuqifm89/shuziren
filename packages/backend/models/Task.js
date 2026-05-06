@@ -28,6 +28,9 @@ const Task = sequelize.define('Task', {
   progress: {
     type: DataTypes.INTEGER,
     defaultValue: 0
+  },
+  runningHubTaskId: {
+    type: DataTypes.STRING(100)
   }
 }, {
   timestamps: true,

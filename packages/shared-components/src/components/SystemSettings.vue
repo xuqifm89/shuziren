@@ -183,6 +183,15 @@ const props = defineProps({
 
 const base = computed(() => props.apiBase || (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE ? import.meta.env.VITE_API_BASE.replace(/\/api$/, '') : ''))
 
+const getAuthHeaders = () => {
+  const headers = { 'Content-Type': 'application/json' }
+  const token = localStorage.getItem('token')
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  return headers
+}
+
 const activeTab = ref('profile')
 const saving = ref(false)
 const changingPassword = ref(false)
@@ -302,8 +311,15 @@ const handleAvatarUpload = async ({ file }) => {
   formData.append('file', file)
 
   try {
+    const token = localStorage.getItem('token')
+    const authHeaders = {}
+    if (token) {
+      authHeaders['Authorization'] = `Bearer ${token}`
+    }
+
     const response = await fetch(`${base.value}/api/users/${currentUser.id}/avatar`, {
       method: 'POST',
+      headers: authHeaders,
       body: formData
     })
 
@@ -317,7 +333,11 @@ const handleAvatarUpload = async ({ file }) => {
 
       ElMessage.success('头像上传成功')
     } else {
-      ElMessage.error(data.error || '头像上传失败')
+      if (response.status === 401) {
+        ElMessage.error('登录已过期，请重新登录')
+      } else {
+        ElMessage.error(data.error || '头像上传失败')
+      }
     }
   } catch (err) {
     console.error('Avatar upload failed:', err)
@@ -344,11 +364,25 @@ const handleSave = async () => {
     localStorage.setItem('userInfo', JSON.stringify(updatedUser))
 
     if (currentUser.id) {
-      await fetch(`${base.value}/api/users/${currentUser.id}`, {
+      const response = await fetch(`${base.value}/api/users/${currentUser.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userInfo.value)
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          nickname: userInfo.value.username,
+          email: userInfo.value.email,
+          phone: userInfo.value.phone,
+          bio: userInfo.value.bio
+        })
       })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        if (response.status === 401) {
+          ElMessage.error('登录已过期，请重新登录')
+          return
+        }
+        throw new Error(data.error || '保存失败')
+      }
     }
 
     ElMessage.success('个人信息保存成功')
@@ -393,9 +427,9 @@ const handleChangePassword = async () => {
 
     const response = await fetch(`${base.value}/api/users/${currentUser.id}/password`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
-        currentPassword: passwordForm.currentPassword,
+        oldPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword
       })
     })
@@ -408,7 +442,11 @@ const handleChangePassword = async () => {
       passwordForm.newPassword = ''
       passwordForm.confirmPassword = ''
     } else {
-      ElMessage.error(data.error || '密码修改失败')
+      if (response.status === 401) {
+        ElMessage.error('登录已过期，请重新登录')
+      } else {
+        ElMessage.error(data.error || '密码修改失败')
+      }
     }
   } catch (err) {
     console.error('Failed to change password:', err)

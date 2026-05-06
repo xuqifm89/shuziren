@@ -3,16 +3,25 @@ const router = express.Router();
 const videoService = require('../services/videoService');
 const avatarRepository = require('../repositories/AvatarRepository');
 const { parseDouyinVideo } = require('../services/douyinService');
+const { parseKuaishouVideo } = require('../services/kuaishouService');
+const { parseXiaohongshuVideo } = require('../services/xiaohongshuService');
+const { parseBilibiliVideo } = require('../services/bilibiliService');
 const axios = require('axios');
 const path = require('path');
 const { execSync } = require('child_process');
 const fileService = require('../services/fileService');
+const taskService = require('../services/taskService');
 
 router.post('/generate', async (req, res) => {
   try {
-    const { audioPath, avatarId, modelType } = req.body;
-    const result = await videoService.generateVideo(audioPath, avatarId, modelType);
-    res.json(result);
+    const { audioPath, avatarId, modelType, userId } = req.body;
+
+    try {
+      const result = await videoService.generateVideo(audioPath, avatarId, modelType, userId, null);
+      res.json({ videoUrl: result.videoUrl, success: true });
+    } catch (genError) {
+      res.status(500).json({ error: genError.message });
+    }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -105,6 +114,51 @@ router.post('/douyin/parse', async (req, res) => {
       res.status(400).json({ error: 'Video download failed', detail: error.message, videoInfo: error.videoInfo });
     } else {
       res.status(500).json({ error: '抖音解析失败: ' + error.message });
+    }
+  }
+});
+
+router.post('/kuaishou/parse', async (req, res) => {
+  try {
+    const result = await parseKuaishouVideo(req.body.url);
+    res.json(result);
+  } catch (error) {
+    console.error('\n❌ 快手解析失败:', error.message);
+    console.error('═'.repeat(60) + '\n');
+    if (error.videoInfo) {
+      res.status(400).json({ error: 'Video download failed', detail: error.message, videoInfo: error.videoInfo });
+    } else {
+      res.status(500).json({ error: '快手解析失败: ' + error.message });
+    }
+  }
+});
+
+router.post('/xiaohongshu/parse', async (req, res) => {
+  try {
+    const result = await parseXiaohongshuVideo(req.body.url);
+    res.json(result);
+  } catch (error) {
+    console.error('\n❌ 小红书解析失败:', error.message);
+    console.error('═'.repeat(60) + '\n');
+    if (error.videoInfo) {
+      res.status(400).json({ error: 'Video download failed', detail: error.message, videoInfo: error.videoInfo });
+    } else {
+      res.status(500).json({ error: '小红书解析失败: ' + error.message });
+    }
+  }
+});
+
+router.post('/bilibili/parse', async (req, res) => {
+  try {
+    const result = await parseBilibiliVideo(req.body.url);
+    res.json(result);
+  } catch (error) {
+    console.error('\n❌ 哔哩哔哩解析失败:', error.message);
+    console.error('═'.repeat(60) + '\n');
+    if (error.videoInfo) {
+      res.status(400).json({ error: 'Video download failed', detail: error.message, videoInfo: error.videoInfo });
+    } else {
+      res.status(500).json({ error: '哔哩哔哩解析失败: ' + error.message });
     }
   }
 });

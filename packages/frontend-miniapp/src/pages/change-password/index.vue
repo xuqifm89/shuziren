@@ -53,7 +53,10 @@ const handleSubmit = async () => {
   }
   try {
     uni.showLoading({ title: '提交中...' })
-    await api.request(`/users/${userStore.userInfo.id}/password`, 'PUT', form.value)
+    await api.put(`/users/${userStore.userInfo.id}/password`, {
+      oldPassword: form.value.currentPassword,
+      newPassword: form.value.newPassword
+    })
     uni.hideLoading()
     uni.showToast({ title: '密码修改成功', icon: 'success' })
     setTimeout(() => uni.navigateBack(), 500)

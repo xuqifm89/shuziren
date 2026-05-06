@@ -338,7 +338,8 @@ async function handleLoginAccount(account) {
       try {
         const qrcodeData = await api.get(`/publish/accounts/${account.id}/qrcode`)
         if (qrcodeData.success && qrcodeData.qrcodeUrl) {
-          qrcodeUrl.value = qrcodeData.qrcodeUrl
+          const url = qrcodeData.qrcodeUrl
+          qrcodeUrl.value = url.startsWith('http') ? url : `${MEDIA_BASE}${url}`
         }
       } catch (e) {}
       if (pollCount >= maxPolls) clearInterval(loginPollingTimer.value)
@@ -501,8 +502,8 @@ onMounted(() => {
 .section-title { font-size: 26rpx; color: rgba(255,255,255,0.8); font-weight: 500; }
 .add-account-btn { padding: 8rpx 20rpx; background: rgba(102,126,234,0.2); border-radius: 8rpx; }
 .add-account-btn-text { font-size: 24rpx; color: #667eea; }
-.platform-list { display: flex; gap: 16rpx; flex-wrap: wrap; }
-.platform-item { display: flex; flex-direction: column; align-items: center; gap: 4rpx; padding: 16rpx 24rpx; background: rgba(255,255,255,0.04); border: 1rpx solid rgba(255,255,255,0.08); border-radius: 12rpx; min-width: 120rpx; }
+.platform-list { display: flex; gap: 16rpx; }
+.platform-item { display: flex; flex-direction: column; align-items: center; gap: 4rpx; padding: 16rpx 0; background: rgba(255,255,255,0.04); border: 1rpx solid rgba(255,255,255,0.08); border-radius: 12rpx; flex: 1; }
 .platform-item.active { background: rgba(102,126,234,0.15); border-color: rgba(102,126,234,0.3); }
 .platform-icon { width: 56rpx; height: 56rpx; }
 .platform-name { font-size: 24rpx; color: rgba(255,255,255,0.8); }

@@ -6,6 +6,7 @@ const SiliconFlowAI = require('./siliconFlowAI');
 const { getDynamicConfig } = require('../config/apiConfig');
 const { getMockTranscription } = require('./mockASR');
 const apiLogService = require('./apiLogService');
+const taskService = require('./taskService');
 
 let cachedRunningHubAI = null;
 let cachedSiliconFlowAI = null;
@@ -68,7 +69,7 @@ const forbiddenKeywords = [
   '违禁词1', '违禁词2', '敏感词1', '敏感词2'
 ];
 
-async function transcribeAudio(audioPath, modelType = 'cloud', asrModel = 'qwen', roleSplit = false, userId = null) {
+async function transcribeAudio(audioPath, modelType = 'cloud', asrModel = 'qwen', roleSplit = false, userId = null, existingTaskId = null) {
   const startTime = new Date();
   let apiLog = null;
 
@@ -80,6 +81,21 @@ async function transcribeAudio(audioPath, modelType = 'cloud', asrModel = 'qwen'
     console.log('  文件大小:', stats.size, 'bytes');
   }
   console.log();
+
+  let task = null;
+  if (existingTaskId) {
+    task = await taskService.getTask(existingTaskId);
+  }
+  if (!task) {
+    try {
+      task = await taskService.createTask({
+        taskType: 'text_generation',
+        inputData: { audioPath: audioPath ? audioPath.substring(0, 50) : '', asrModel }
+      });
+    } catch (e) {
+      console.log('⚠️ 创建任务记录失败（非致命）:', e.message);
+    }
+  }
 
   try {
     // 创建日志
@@ -138,6 +154,7 @@ async function transcribeAudio(audioPath, modelType = 'cloud', asrModel = 'qwen'
     }
 
     console.log(`✅ 任务已创建: ${result.taskId}`);
+    if (task) await taskService.updateRunningHubTaskId(task.id, result.taskId);
 
     console.log(`🔌 开始 WebSocket 连接...`);
     const taskResult = await runningHubAI.waitForCompletionWithWebSocket(result.taskId, result.netWssUrl);
@@ -165,6 +182,8 @@ async function transcribeAudio(audioPath, modelType = 'cloud', asrModel = 'qwen'
         startTime,
         taskId: result.taskId,
         rhTaskId: result.taskId,
+        consumeCoins: taskResult.consumeCoins,
+        taskCostTimeMs: taskResult.taskCostTimeMs,
         responseData: { textLength: textResult.length },
       });
     }

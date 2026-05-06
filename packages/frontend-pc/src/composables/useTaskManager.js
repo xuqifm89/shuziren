@@ -18,7 +18,8 @@ const state = reactive({
   successMessage: '',
   isCancelling: false,
   progress: 0,
-  progressMessage: ''
+  progressMessage: '',
+  outputUrl: ''
 })
 
 const listeners = ref([])
@@ -47,6 +48,9 @@ function initWebSocket() {
       if (data.status === 'success') {
         state.progress = 100
         state.progressMessage = data.message || '任务完成'
+        if (data.outputUrl) {
+          state.outputUrl = data.outputUrl
+        }
         completeTask(data.message || `${state.taskName}已完成`)
       }
       if (data.status === 'error') {
@@ -128,6 +132,7 @@ function clearState() {
   state.isCancelling = false
   state.progress = 0
   state.progressMessage = ''
+  state.outputUrl = ''
 
   try {
     localStorage.removeItem(TASK_STORAGE_KEY)
@@ -260,8 +265,11 @@ export function useTaskManager() {
       if (result && result.success !== false) {
         if (result.taskId) {
           setServerTaskId(result.taskId)
-        }
-        if (!state.serverTaskId) {
+          state.status = 'processing'
+          state.progressMessage = '任务已提交，等待处理...'
+          saveState()
+          notifyListeners()
+        } else if (!state.serverTaskId) {
           completeTask(result.message || `${state.taskName}已完成`)
         }
       } else {
@@ -316,13 +324,10 @@ export function useTaskManager() {
     notifyListeners()
 
     try {
-      const response = await fetch('/api/tasks/cancel', {
+      const taskId = state.serverTaskId || state.taskId
+      const response = await fetch(`/api/tasks/${taskId}/cancel`, {
         method: 'POST',
-        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          taskId: state.serverTaskId || state.taskId,
-          taskType: state.taskType
-        })
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' })
       })
 
       const data = await response.json()

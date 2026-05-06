@@ -51,15 +51,19 @@
       生成视频
     </button>
 
-    <view v-if="videoPath" class="result-section">
-      <view class="result-header">
-        <text class="result-label">视频结果</text>
-        <view class="result-btns">
-          <text class="result-btn" @tap="playResultVideo">播放</text>
-          <text class="result-btn primary" @tap="useVideo">使用此视频</text>
+    <view class="video-player">
+      <view class="player-header">
+        <text class="player-label">视频结果</text>
+        <view class="player-btns" v-if="videoPath">
+          <text class="player-action-btn" @tap="useVideo">使用此视频</text>
         </view>
       </view>
-      <video :src="resolveMediaUrl(videoPath)" class="result-video" controls :show-center-play-btn="true" object-fit="contain" />
+      <view v-if="videoPath" class="player-video-wrap">
+        <video :src="resolveMediaUrl(videoPath)" class="player-video" controls :show-center-play-btn="true" object-fit="contain" />
+      </view>
+      <view v-else class="player-empty">
+        <text class="player-empty-text">生成视频后将在此播放</text>
+      </view>
     </view>
 
     <view v-if="showPreviewModal" class="preview-modal-overlay" @tap="closePreviewModal">
@@ -93,13 +97,15 @@ const videoList = ref([])
 const selectedAvatar = ref(null)
 const dubbingList = ref([])
 const selectedDubbing = ref(null)
-const videoPath = ref('')
+const videoPath = ref(uni.getStorageSync('avatarVideo_videoPath') || '')
 
 const showPreviewModal = ref(false)
 const previewFileUrl = ref('')
 const previewFileType = ref('image')
 
 let innerAudioCtx = null
+
+watch(videoPath, (val) => { uni.setStorageSync('avatarVideo_videoPath', val) })
 
 function getUserId() {
   const userInfo = uni.getStorageSync('userInfo')
@@ -243,14 +249,6 @@ async function handleGenerate() {
   })
 }
 
-function playResultVideo() {
-  if (videoPath.value) {
-    previewFileUrl.value = resolveMediaUrl(videoPath.value)
-    previewFileType.value = 'video'
-    showPreviewModal.value = true
-  }
-}
-
 function useVideo() { emit('video-generated', videoPath.value) }
 </script>
 
@@ -280,13 +278,15 @@ function useVideo() { emit('video-generated', videoPath.value) }
 .action-btn { width: 100%; height: 80rpx; background: linear-gradient(135deg,#667eea,#764ba2); color: #fff; font-size: 28rpx; font-weight: 600; border-radius: 12rpx; border: none; }
 .action-btn[disabled] { opacity: 0.5; }
 
-.result-section { margin-top: 20rpx; background: rgba(0,0,0,0.2); border-radius: 12rpx; padding: 20rpx; border: 1rpx solid rgba(102,126,234,0.2); }
-.result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16rpx; }
-.result-label { font-size: 24rpx; color: #667eea; font-weight: 600; }
-.result-btns { display: flex; gap: 16rpx; }
-.result-btn { font-size: 22rpx; color: rgba(255,255,255,0.6); padding: 4rpx 12rpx; background: rgba(255,255,255,0.06); border-radius: 6rpx; }
-.result-btn.primary { color: #667eea; }
-.result-video { width: 100%; height: 400rpx; border-radius: 12rpx; }
+.video-player { margin-top: 24rpx; background: rgba(0,0,0,0.3); border-radius: 16rpx; padding: 24rpx; border: 1rpx solid rgba(102,126,234,0.2); }
+.player-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16rpx; }
+.player-label { font-size: 24rpx; color: #667eea; font-weight: 600; }
+.player-btns { display: flex; gap: 16rpx; }
+.player-action-btn { font-size: 24rpx; color: #fff; padding: 10rpx 20rpx; background: rgba(102,126,234,0.3); border-radius: 8rpx; }
+.player-video-wrap { border-radius: 12rpx; overflow: hidden; }
+.player-video { width: 100%; height: 400rpx; }
+.player-empty { padding: 48rpx 0; text-align: center; }
+.player-empty-text { font-size: 24rpx; color: rgba(255,255,255,0.3); }
 
 .preview-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 9999; display: flex; align-items: center; justify-content: center; }
 .preview-modal-content { width: 90%; max-width: 680rpx; position: relative; }

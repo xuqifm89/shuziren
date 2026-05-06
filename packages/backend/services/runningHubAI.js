@@ -213,12 +213,17 @@ class RunningHubAI {
     const result = await this.waitForTaskResult(taskId, maxWaitMs, 3000);
     
     if (result.success && result.status === 'SUCCESS') {
+      const costData = {};
+      if (result.consumeCoins !== undefined) costData.consumeCoins = result.consumeCoins;
+      if (result.taskCostTimeMs !== undefined) costData.taskCostTimeMs = result.taskCostTimeMs;
+
       return {
         success: true,
         status: 'SUCCESS',
         taskId: taskId,
         outputs: (result.outputs || []).map(url => ({ type: 'file', url })),
-        error: null
+        error: null,
+        ...costData
       };
     }
     
@@ -275,6 +280,7 @@ class RunningHubAI {
   }
 
   async waitForCompletionWithWebSocket(taskId, netWssUrl, options = {}) {
+    const self = this;
     return new Promise((resolve, reject) => {
       const timeout = options.timeout || 600000;
       const onProgress = options.onProgress || null;
@@ -308,7 +314,7 @@ class RunningHubAI {
 
         ws.on('open', () => console.log('✅ WebSocket 连接成功'));
 
-        ws.on('message', (data) => {
+        ws.on('message', async (data) => {
           try {
             const message = JSON.parse(data.toString());
             console.log(`📨 收到消息: ${message.type}`);
@@ -380,7 +386,16 @@ class RunningHubAI {
               console.log('✅ 任务执行成功！');
               console.log('📁 最终输出文件:', JSON.stringify(outputFiles));
               if (onProgress) onProgress(100, '任务执行完成');
-              resolve({ success: true, status: 'SUCCESS', text: textResult, outputs: outputFiles, taskId });
+
+              const costInfo = await self.getTaskOutputs(taskId);
+              const costData = {};
+              if (costInfo.success) {
+                if (costInfo.consumeCoins !== null) costData.consumeCoins = costInfo.consumeCoins;
+                if (costInfo.taskCostTimeMs !== null) costData.taskCostTimeMs = costInfo.taskCostTimeMs;
+                console.log(`💰 消耗金币: ${costInfo.consumeCoins}, ⏱️ 任务耗时: ${costInfo.taskCostTimeMs}ms`);
+              }
+
+              resolve({ success: true, status: 'SUCCESS', text: textResult, outputs: outputFiles, taskId, ...costData });
             } else if (message.type === 'execution_error' || message.status === 'FAILED') {
               completed = true;
               clearTimeout(timeoutId);
@@ -453,6 +468,53 @@ class RunningHubAI {
     }
   }
 
+  async getTaskOutputs(taskId) {
+    try {
+      const apiKey = await this.getApiKey();
+      const baseUrl = await this.getBaseUrl();
+
+      const response = await axios.post(`${baseUrl}/task/openapi/outputs`, {
+        apiKey: apiKey,
+        taskId: String(taskId)
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        }
+      });
+
+      if (response.data.code === 0 && response.data.data) {
+        const outputs = response.data.data;
+        let totalConsumeCoins = 0;
+        let maxTaskCostTimeMs = 0;
+
+        for (const item of outputs) {
+          if (item.consumeCoins) {
+            totalConsumeCoins += parseFloat(item.consumeCoins) || 0;
+          }
+          if (item.taskCostTime) {
+            const costMs = parseFloat(item.taskCostTime) * 1000;
+            if (costMs > maxTaskCostTimeMs) {
+              maxTaskCostTimeMs = costMs;
+            }
+          }
+        }
+
+        return {
+          success: true,
+          outputs: outputs,
+          consumeCoins: totalConsumeCoins > 0 ? totalConsumeCoins : null,
+          taskCostTimeMs: maxTaskCostTimeMs > 0 ? maxTaskCostTimeMs : null
+        };
+      } else {
+        return { success: false, error: response.data.msg };
+      }
+    } catch (error) {
+      console.log(`⚠️ 获取任务输出详情失败: ${error.message}`);
+      return { success: false, error: error.message };
+    }
+  }
+
   async waitForTaskResult(taskId, maxWaitMs = 600000, checkIntervalMs = 3000) {
     const startTime = Date.now();
     console.log(`⏳ 等待任务结果: ${taskId}`);
@@ -468,6 +530,14 @@ class RunningHubAI {
 
       if (result.status === 'SUCCESS' && result.outputs && result.outputs.length > 0) {
         console.log(`✅ 任务结果已就绪，获取到 ${result.outputs.length} 个输出`);
+
+        const costInfo = await this.getTaskOutputs(taskId);
+        if (costInfo.success) {
+          if (costInfo.consumeCoins !== null) result.consumeCoins = costInfo.consumeCoins;
+          if (costInfo.taskCostTimeMs !== null) result.taskCostTimeMs = costInfo.taskCostTimeMs;
+          console.log(`💰 消耗金币: ${costInfo.consumeCoins}, ⏱️ 任务耗时: ${costInfo.taskCostTimeMs}ms`);
+        }
+
         return result;
       }
 
@@ -481,6 +551,38 @@ class RunningHubAI {
     }
 
     return { success: false, error: '等待任务结果超时' };
+  }
+
+  async cancelTask(taskId) {
+    try {
+      const apiKey = await this.getApiKey();
+      const baseUrl = await this.getBaseUrl();
+
+      console.log(`🛑 取消 RunningHub 任务: ${taskId}`);
+
+      const response = await axios.post(`${baseUrl}/task/openapi/cancel`, {
+        apiKey: apiKey,
+        taskId: String(taskId)
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        }
+      });
+
+      console.log('📥 取消任务响应:', JSON.stringify(response.data, null, 2));
+
+      if (response.data.code === 0) {
+        console.log(`✅ RunningHub 任务已取消: ${taskId}`);
+        return { success: true, message: response.data.msg || '任务已取消' };
+      } else {
+        console.log(`⚠️ RunningHub 取消任务返回非0: ${response.data.msg}`);
+        return { success: false, error: response.data.msg, code: response.data.code };
+      }
+    } catch (error) {
+      console.log(`❌ 取消 RunningHub 任务失败: ${error.message}`);
+      return { success: false, error: error.message };
+    }
   }
 
   async downloadFile(url, savePath) {
