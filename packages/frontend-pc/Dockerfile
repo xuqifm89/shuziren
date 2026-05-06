@@ -7,8 +7,8 @@ COPY package*.json ./
 COPY packages/shared-components/package*.json ./packages/shared-components/
 COPY packages/frontend-pc/package*.json ./packages/frontend-pc/
 
-# 在根目录安装依赖（monorepo）
-RUN npm install
+# 在根目录安装依赖（monorepo），跳过自动执行 postinstall
+RUN npm install --ignore-scripts
 
 # 复制所有源代码
 COPY . .
