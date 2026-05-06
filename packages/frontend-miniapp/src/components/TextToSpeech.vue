@@ -72,6 +72,29 @@ function playVoice(v) {
 }
 
 function handleUploadVoice() {
+  // #ifdef H5
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'audio/*,.wav,.mp3,.ogg'
+  input.onchange = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    try {
+      uni.showLoading({ title: '上传中...' })
+      const uploadResult = await uploadFile('/voice-library/upload', file, 'audio')
+      if (uploadResult.success || uploadResult.id) {
+        const user = getUserId()
+        await api.post('/voice-library', { userId: user?.id, fileName: file.name || '音色', fileUrl: uploadResult.fileUrl || uploadResult.url, fileSize: file.size, description: '', tags: '', isPublic: false })
+        uni.showToast({ title: '上传成功', icon: 'success' })
+        const result = await api.get('/voice-library', user?.id ? { userId: user.id } : {})
+        voiceList.value = Array.isArray(result) ? result : (result?.list || result?.data || [])
+      }
+    } catch (err) { uni.showToast({ title: '上传失败', icon: 'none' }) }
+    finally { uni.hideLoading() }
+  }
+  input.click()
+  // #endif
+  // #ifndef H5
   uni.chooseMessageFile({
     count: 1, type: 'file', extension: ['.wav', '.mp3', '.ogg'],
     success: async (res) => {
@@ -90,6 +113,7 @@ function handleUploadVoice() {
       finally { uni.hideLoading() }
     }
   })
+  // #endif
 }
 
 async function handleGenerate() {

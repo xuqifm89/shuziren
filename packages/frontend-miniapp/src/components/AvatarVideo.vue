@@ -1,25 +1,38 @@
 <template>
   <view class="avatar-video">
-    <view class="form-group">
-      <view class="form-label-row">
-        <text class="form-label">{{ useVideoDriver ? '选择肖像视频' : '选择图片' }}</text>
-        <text class="form-action" @tap="handleUploadPortrait">上传{{ useVideoDriver ? '肖像素材' : '图片' }}</text>
-      </view>
-      <scroll-view scroll-x class="horizontal-scroll" v-if="avatarList.length > 0">
-        <view :class="['avatar-card', selectedAvatar && selectedAvatar.id === a.id ? 'active' : '']" v-for="a in avatarList" :key="a.id" @tap="selectedAvatar = a">
-          <image v-if="a.type !== 'video' && a.fileUrl" :src="resolveMediaUrl(a.fileUrl)" class="avatar-img" mode="aspectFill" />
-          <view v-else-if="a.type === 'video'" class="avatar-video-thumb">
-            <image v-if="a.thumbnailUrl" :src="resolveMediaUrl(a.thumbnailUrl)" class="avatar-img" mode="aspectFill" />
-            <view v-else class="avatar-video-placeholder">
-              <text class="video-icon">▶</text>
-            </view>
-            <view class="avatar-video-badge">🎬</view>
-          </view>
-          <view v-else class="avatar-placeholder">👤</view>
+    <template v-if="!useVideoDriver">
+      <view class="form-group">
+        <view class="form-label-row">
+          <text class="form-label">选择图片</text>
+          <text class="form-action" @tap="handleUploadImage">上传图片</text>
         </view>
-      </scroll-view>
-      <view v-else class="empty-hint"><text class="empty-text">暂无肖像</text></view>
-    </view>
+        <scroll-view scroll-x class="horizontal-scroll" v-if="imageList.length > 0">
+          <view :class="['avatar-card', selectedAvatar && selectedAvatar.id === a.id ? 'active' : '']" v-for="a in imageList" :key="a.id" @tap="selectAvatar(a)">
+            <image :src="resolveMediaUrl(a.fileUrl)" class="avatar-img" mode="aspectFill" />
+          </view>
+        </scroll-view>
+        <view v-else class="empty-hint"><text class="empty-text">暂无图片</text></view>
+      </view>
+    </template>
+
+    <template v-else>
+      <view class="form-group">
+        <view class="form-label-row">
+          <text class="form-label">选择肖像视频</text>
+          <text class="form-action" @tap="handleUploadPortrait">上传肖像素材</text>
+        </view>
+        <scroll-view scroll-x class="horizontal-scroll" v-if="videoList.length > 0">
+          <view :class="['avatar-card', selectedAvatar && selectedAvatar.id === a.id ? 'active' : '']" v-for="a in videoList" :key="a.id" @tap="selectAvatar(a)">
+            <view class="avatar-video-thumb" @tap.stop="previewAvatar(a)">
+              <video :src="resolveMediaUrl(a.fileUrl)" class="avatar-video-mini" muted :show-center-play-btn="false" :show-play-btn="false" :controls="false" :enable-progress-gesture="false" object-fit="cover" />
+              <view class="avatar-play-overlay">▶</view>
+            </view>
+          </view>
+        </scroll-view>
+        <view v-else class="empty-hint"><text class="empty-text">暂无肖像视频</text></view>
+      </view>
+    </template>
+
     <view class="form-group">
       <view class="form-label-row">
         <text class="form-label">选择音频</text>
@@ -28,20 +41,37 @@
       <scroll-view scroll-x class="horizontal-scroll" v-if="dubbingList.length > 0">
         <view :class="['voice-card', selectedDubbing && selectedDubbing.id === d.id ? 'active' : '']" v-for="d in dubbingList" :key="d.id" @tap="selectedDubbing = d">
           <text class="voice-name">{{ d.fileName || d.name || '配音' }}</text>
+          <text class="voice-play" @tap.stop="playDubbingPreview(d)">▶</text>
         </view>
       </scroll-view>
       <view v-else class="empty-hint"><text class="empty-text">暂无配音</text></view>
     </view>
+
     <button class="action-btn" @tap="handleGenerate" :disabled="!selectedAvatar || !selectedDubbing">
       生成视频
     </button>
+
     <view v-if="videoPath" class="result-section">
       <view class="result-header">
         <text class="result-label">视频结果</text>
         <view class="result-btns">
-          <text class="result-btn" @tap="playVideo">播放</text>
+          <text class="result-btn" @tap="playResultVideo">播放</text>
           <text class="result-btn primary" @tap="useVideo">使用此视频</text>
         </view>
+      </view>
+      <video :src="resolveMediaUrl(videoPath)" class="result-video" controls :show-center-play-btn="true" object-fit="contain" />
+    </view>
+
+    <view v-if="showPreviewModal" class="preview-modal-overlay" @tap="closePreviewModal">
+      <view class="preview-modal-content" @tap.stop>
+        <view class="preview-modal-close" @tap="closePreviewModal">✕</view>
+        <template v-if="previewFileType === 'video'">
+          <video :src="previewFileUrl" controls class="preview-media" :show-center-play-btn="true" object-fit="contain" @tap.stop />
+        </template>
+        <template v-else>
+          <image :src="previewFileUrl" class="preview-media-img" mode="aspectFit" @tap="closePreviewModal" />
+        </template>
+        <text class="preview-modal-hint">点击空白区域关闭</text>
       </view>
     </view>
   </view>
@@ -58,12 +88,18 @@ const props = defineProps({
 })
 const emit = defineEmits(['video-generated', 'audio-generated', 'start-task'])
 
-const avatarList = ref([])
+const imageList = ref([])
+const videoList = ref([])
 const selectedAvatar = ref(null)
 const dubbingList = ref([])
 const selectedDubbing = ref(null)
-const isGenerating = ref(false)
 const videoPath = ref('')
+
+const showPreviewModal = ref(false)
+const previewFileUrl = ref('')
+const previewFileType = ref('image')
+
+let innerAudioCtx = null
 
 function getUserId() {
   const userInfo = uni.getStorageSync('userInfo')
@@ -75,8 +111,6 @@ async function loadData() {
   const user = getUserId()
   try {
     const params = { ...(user?.id ? { userId: user.id } : {}) }
-    if (props.useVideoDriver) params.type = 'video'
-    else params.type = 'image'
     const [pRes, dRes] = await Promise.allSettled([
       api.get('/portrait-library', params),
       api.get('/dubbing-library', user?.id ? { userId: user.id } : {})
@@ -84,7 +118,8 @@ async function loadData() {
     if (pRes.status === 'fulfilled') {
       const raw = pRes.value
       const list = Array.isArray(raw) ? raw : (raw?.list || raw?.data || [])
-      avatarList.value = list
+      imageList.value = list.filter(item => item.type !== 'video')
+      videoList.value = list.filter(item => item.type === 'video')
     }
     if (dRes.status === 'fulfilled') {
       const raw = dRes.value
@@ -95,45 +130,72 @@ async function loadData() {
   }
 }
 
+function selectAvatar(a) {
+  selectedAvatar.value = a
+}
+
+function previewAvatar(a) {
+  if (a) {
+    previewFileUrl.value = resolveMediaUrl(a.fileUrl)
+    previewFileType.value = a.type || 'video'
+    showPreviewModal.value = true
+  }
+}
+
+function closePreviewModal() {
+  showPreviewModal.value = false
+  previewFileUrl.value = ''
+}
+
+function playDubbingPreview(d) {
+  if (innerAudioCtx) { innerAudioCtx.stop(); innerAudioCtx = null }
+  const url = d.fileUrl || d.filePath
+  if (url) {
+    innerAudioCtx = uni.createInnerAudioContext()
+    innerAudioCtx.src = resolveMediaUrl(url)
+    innerAudioCtx.play()
+  }
+}
+
 watch(() => props.useVideoDriver, () => { selectedAvatar.value = null; loadData() })
 watch(() => props.audioPath, (val) => { if (val) { const match = dubbingList.value.find(d => (d.fileUrl || d.filePath) === val); if (match) selectedDubbing.value = match } })
 
 onMounted(() => loadData())
 
+function handleUploadImage() {
+  uni.chooseImage({ count: 1, success: async (res) => {
+    const file = res.tempFiles[0]
+    try {
+      uni.showLoading({ title: '上传中...' })
+      const uploadResult = await uploadFile('/portrait-library/upload', file.path, 'image', { type: 'image' })
+      if (uploadResult.success || uploadResult.id) {
+        const user = getUserId()
+        await api.post('/portrait-library', { userId: user?.id, fileName: '肖像图片', fileUrl: uploadResult.fileUrl || uploadResult.url, type: 'image', isPublic: false })
+        uni.showToast({ title: '上传成功', icon: 'success' }); loadData()
+      }
+    } catch (err) { uni.showToast({ title: '上传失败', icon: 'none' }) } finally { uni.hideLoading() }
+  }})
+}
+
 function handleUploadPortrait() {
-  if (props.useVideoDriver) {
-    uni.chooseVideo({ sourceType: ['album', 'camera'], success: async (res) => {
-      try {
-        uni.showLoading({ title: '上传中...' })
-        const uploadResult = await uploadFile('/portrait-library/upload', res.tempFilePath, 'video', { type: 'video' })
-        if (uploadResult.success || uploadResult.id) {
-          const user = getUserId()
-          await api.post('/portrait-library', { userId: user?.id, fileName: '肖像视频', fileUrl: uploadResult.fileUrl || uploadResult.url, type: 'video', isPublic: false })
-          uni.showToast({ title: '上传成功', icon: 'success' }); loadData()
-        }
-      } catch (err) { uni.showToast({ title: '上传失败', icon: 'none' }) } finally { uni.hideLoading() }
-    }})
-  } else {
-    uni.chooseImage({ count: 1, success: async (res) => {
-      const file = res.tempFiles[0]
-      try {
-        uni.showLoading({ title: '上传中...' })
-        const uploadResult = await uploadFile('/portrait-library/upload', file.path, 'image', { type: 'image' })
-        if (uploadResult.success || uploadResult.id) {
-          const user = getUserId()
-          await api.post('/portrait-library', { userId: user?.id, fileName: '肖像图片', fileUrl: uploadResult.fileUrl || uploadResult.url, type: 'image', isPublic: false })
-          uni.showToast({ title: '上传成功', icon: 'success' }); loadData()
-        }
-      } catch (err) { uni.showToast({ title: '上传失败', icon: 'none' }) } finally { uni.hideLoading() }
-    }})
-  }
+  uni.chooseVideo({ sourceType: ['album', 'camera'], success: async (res) => {
+    try {
+      uni.showLoading({ title: '上传中...' })
+      const uploadResult = await uploadFile('/portrait-library/upload', res.tempFilePath, 'video', { type: 'video' })
+      if (uploadResult.success || uploadResult.id) {
+        const user = getUserId()
+        await api.post('/portrait-library', { userId: user?.id, fileName: '肖像视频', fileUrl: uploadResult.fileUrl || uploadResult.url, type: 'video', isPublic: false })
+        uni.showToast({ title: '上传成功', icon: 'success' }); loadData()
+      }
+    } catch (err) { uni.showToast({ title: '上传失败', icon: 'none' }) } finally { uni.hideLoading() }
+  }})
 }
 
 function handleUploadDubbing() {
   // #ifdef H5
   const input = document.createElement('input')
   input.type = 'file'
-  input.accept = '.wav,.mp3,.ogg'
+  input.accept = 'audio/*,.wav,.mp3,.ogg'
   input.onchange = async (e) => {
     const file = e.target.files[0]
     if (!file) return
@@ -181,8 +243,12 @@ async function handleGenerate() {
   })
 }
 
-function playVideo() {
-  if (videoPath.value) uni.navigateTo({ url: `/pages/video-player/index?url=${encodeURIComponent(resolveMediaUrl(videoPath.value))}` })
+function playResultVideo() {
+  if (videoPath.value) {
+    previewFileUrl.value = resolveMediaUrl(videoPath.value)
+    previewFileType.value = 'video'
+    showPreviewModal.value = true
+  }
 }
 
 function useVideo() { emit('video-generated', videoPath.value) }
@@ -195,25 +261,37 @@ function useVideo() { emit('video-generated', videoPath.value) }
 .form-label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12rpx; }
 .form-action { font-size: 24rpx; color: #667eea; }
 .horizontal-scroll { white-space: nowrap; }
-.avatar-card { display: inline-block; width: 120rpx; height: 120rpx; margin-right: 12rpx; border-radius: 12rpx; overflow: hidden; border: 2rpx solid rgba(255,255,255,0.08); position: relative; }
+
+.avatar-card { display: inline-block; width: 140rpx; height: 140rpx; margin-right: 12rpx; border-radius: 12rpx; overflow: hidden; border: 2rpx solid rgba(255,255,255,0.08); position: relative; }
 .avatar-card.active { border-color: #667eea; box-shadow: 0 0 0 2rpx rgba(102,126,234,0.3); }
 .avatar-img { width: 100%; height: 100%; }
-.avatar-placeholder { width: 100%; height: 100%; background: rgba(102,126,234,0.1); display: flex; align-items: center; justify-content: center; font-size: 36rpx; }
+
 .avatar-video-thumb { width: 100%; height: 100%; position: relative; }
-.avatar-video-placeholder { width: 100%; height: 100%; background: rgba(102,126,234,0.15); display: flex; align-items: center; justify-content: center; }
-.video-icon { font-size: 32rpx; color: rgba(255,255,255,0.6); }
-.avatar-video-badge { position: absolute; bottom: 4rpx; right: 4rpx; font-size: 18rpx; }
+.avatar-video-mini { width: 100%; height: 100%; }
+.avatar-play-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3); color: #fff; font-size: 32rpx; }
+
 .voice-card { display: inline-flex; align-items: center; padding: 16rpx 24rpx; margin-right: 12rpx; background: rgba(255,255,255,0.04); border: 1rpx solid rgba(255,255,255,0.08); border-radius: 12rpx; }
 .voice-card.active { background: rgba(102,126,234,0.15); border-color: rgba(102,126,234,0.3); }
 .voice-name { font-size: 24rpx; color: rgba(255,255,255,0.8); max-width: 200rpx; overflow: hidden; text-overflow: ellipsis; }
+.voice-play { font-size: 22rpx; color: #667eea; padding: 8rpx 16rpx; background: rgba(102,126,234,0.1); border-radius: 8rpx; margin-left: 12rpx; }
+
 .empty-hint { padding: 24rpx; text-align: center; }
 .empty-text { font-size: 24rpx; color: rgba(255,255,255,0.3); }
 .action-btn { width: 100%; height: 80rpx; background: linear-gradient(135deg,#667eea,#764ba2); color: #fff; font-size: 28rpx; font-weight: 600; border-radius: 12rpx; border: none; }
 .action-btn[disabled] { opacity: 0.5; }
+
 .result-section { margin-top: 20rpx; background: rgba(0,0,0,0.2); border-radius: 12rpx; padding: 20rpx; border: 1rpx solid rgba(102,126,234,0.2); }
-.result-header { display: flex; justify-content: space-between; align-items: center; }
+.result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16rpx; }
 .result-label { font-size: 24rpx; color: #667eea; font-weight: 600; }
 .result-btns { display: flex; gap: 16rpx; }
 .result-btn { font-size: 22rpx; color: rgba(255,255,255,0.6); padding: 4rpx 12rpx; background: rgba(255,255,255,0.06); border-radius: 6rpx; }
 .result-btn.primary { color: #667eea; }
+.result-video { width: 100%; height: 400rpx; border-radius: 12rpx; }
+
+.preview-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 9999; display: flex; align-items: center; justify-content: center; }
+.preview-modal-content { width: 90%; max-width: 680rpx; position: relative; }
+.preview-modal-close { position: absolute; top: -60rpx; right: 0; width: 56rpx; height: 56rpx; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 36rpx; z-index: 10; background: rgba(255,255,255,0.1); border-radius: 50%; }
+.preview-media { width: 100%; max-height: 70vh; border-radius: 16rpx; }
+.preview-media-img { width: 100%; max-height: 70vh; border-radius: 16rpx; }
+.preview-modal-hint { text-align: center; margin-top: 20rpx; font-size: 22rpx; color: rgba(255,255,255,0.4); }
 </style>
