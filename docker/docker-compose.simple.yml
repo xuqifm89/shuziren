@@ -41,6 +41,8 @@ services:
       
       # 日志级别
       - LOG_LEVEL=info
+      # 配置加密密钥（生产环境必须设置）
+      - CONFIG_ENCRYPTION_KEY=shuziren_config_encryption_key_2024
     
     volumes:
       # 本地文件存储持久化
