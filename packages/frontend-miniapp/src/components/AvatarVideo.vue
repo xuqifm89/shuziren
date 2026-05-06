@@ -7,7 +7,14 @@
       </view>
       <scroll-view scroll-x class="horizontal-scroll" v-if="avatarList.length > 0">
         <view :class="['avatar-card', selectedAvatar && selectedAvatar.id === a.id ? 'active' : '']" v-for="a in avatarList" :key="a.id" @tap="selectedAvatar = a">
-          <image v-if="a.fileUrl" :src="resolveMediaUrl(a.fileUrl)" class="avatar-img" mode="aspectFill" />
+          <image v-if="a.type !== 'video' && a.fileUrl" :src="resolveMediaUrl(a.fileUrl)" class="avatar-img" mode="aspectFill" />
+          <view v-else-if="a.type === 'video'" class="avatar-video-thumb">
+            <image v-if="a.thumbnailUrl" :src="resolveMediaUrl(a.thumbnailUrl)" class="avatar-img" mode="aspectFill" />
+            <view v-else class="avatar-video-placeholder">
+              <text class="video-icon">▶</text>
+            </view>
+            <view class="avatar-video-badge">🎬</view>
+          </view>
           <view v-else class="avatar-placeholder">👤</view>
         </view>
       </scroll-view>
@@ -67,13 +74,25 @@ function getUserId() {
 async function loadData() {
   const user = getUserId()
   try {
+    const params = { ...(user?.id ? { userId: user.id } : {}) }
+    if (props.useVideoDriver) params.type = 'video'
+    else params.type = 'image'
     const [pRes, dRes] = await Promise.allSettled([
-      api.get('/portrait-library', { ...(user?.id ? { userId: user.id } : {}), type: props.useVideoDriver ? 'video' : 'image', page: 1, pageSize: 50 }),
+      api.get('/portrait-library', params),
       api.get('/dubbing-library', user?.id ? { userId: user.id } : {})
     ])
-    if (pRes.status === 'fulfilled') avatarList.value = Array.isArray(pRes.value) ? pRes.value : (pRes.value?.list || pRes.value?.data || [])
-    if (dRes.status === 'fulfilled') dubbingList.value = Array.isArray(dRes.value) ? dRes.value : (dRes.value?.list || dRes.value?.data || [])
-  } catch (e) {}
+    if (pRes.status === 'fulfilled') {
+      const raw = pRes.value
+      const list = Array.isArray(raw) ? raw : (raw?.list || raw?.data || [])
+      avatarList.value = list
+    }
+    if (dRes.status === 'fulfilled') {
+      const raw = dRes.value
+      dubbingList.value = Array.isArray(raw) ? raw : (raw?.list || raw?.data || [])
+    }
+  } catch (e) {
+    console.error('loadData error', e)
+  }
 }
 
 watch(() => props.useVideoDriver, () => { selectedAvatar.value = null; loadData() })
@@ -111,6 +130,26 @@ function handleUploadPortrait() {
 }
 
 function handleUploadDubbing() {
+  // #ifdef H5
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.wav,.mp3,.ogg'
+  input.onchange = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    try {
+      uni.showLoading({ title: '上传中...' })
+      const uploadResult = await uploadFile('/dubbing-library/upload', file, 'audio')
+      if (uploadResult.success || uploadResult.id) {
+        const user = getUserId()
+        await api.post('/dubbing-library', { userId: user?.id, fileName: file.name || '配音', fileUrl: uploadResult.fileUrl || uploadResult.url, isPublic: false })
+        uni.showToast({ title: '上传成功', icon: 'success' }); loadData()
+      }
+    } catch (err) { uni.showToast({ title: '上传失败', icon: 'none' }) } finally { uni.hideLoading() }
+  }
+  input.click()
+  // #endif
+  // #ifndef H5
   uni.chooseMessageFile({ count: 1, type: 'file', extension: ['.wav', '.mp3', '.ogg'], success: async (res) => {
     const file = res.tempFiles[0]
     try {
@@ -123,6 +162,7 @@ function handleUploadDubbing() {
       }
     } catch (err) { uni.showToast({ title: '上传失败', icon: 'none' }) } finally { uni.hideLoading() }
   }})
+  // #endif
 }
 
 async function handleGenerate() {
@@ -155,10 +195,14 @@ function useVideo() { emit('video-generated', videoPath.value) }
 .form-label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12rpx; }
 .form-action { font-size: 24rpx; color: #667eea; }
 .horizontal-scroll { white-space: nowrap; }
-.avatar-card { display: inline-block; width: 120rpx; height: 120rpx; margin-right: 12rpx; border-radius: 12rpx; overflow: hidden; border: 2rpx solid rgba(255,255,255,0.08); }
+.avatar-card { display: inline-block; width: 120rpx; height: 120rpx; margin-right: 12rpx; border-radius: 12rpx; overflow: hidden; border: 2rpx solid rgba(255,255,255,0.08); position: relative; }
 .avatar-card.active { border-color: #667eea; box-shadow: 0 0 0 2rpx rgba(102,126,234,0.3); }
 .avatar-img { width: 100%; height: 100%; }
 .avatar-placeholder { width: 100%; height: 100%; background: rgba(102,126,234,0.1); display: flex; align-items: center; justify-content: center; font-size: 36rpx; }
+.avatar-video-thumb { width: 100%; height: 100%; position: relative; }
+.avatar-video-placeholder { width: 100%; height: 100%; background: rgba(102,126,234,0.15); display: flex; align-items: center; justify-content: center; }
+.video-icon { font-size: 32rpx; color: rgba(255,255,255,0.6); }
+.avatar-video-badge { position: absolute; bottom: 4rpx; right: 4rpx; font-size: 18rpx; }
 .voice-card { display: inline-flex; align-items: center; padding: 16rpx 24rpx; margin-right: 12rpx; background: rgba(255,255,255,0.04); border: 1rpx solid rgba(255,255,255,0.08); border-radius: 12rpx; }
 .voice-card.active { background: rgba(102,126,234,0.15); border-color: rgba(102,126,234,0.3); }
 .voice-name { font-size: 24rpx; color: rgba(255,255,255,0.8); max-width: 200rpx; overflow: hidden; text-overflow: ellipsis; }
