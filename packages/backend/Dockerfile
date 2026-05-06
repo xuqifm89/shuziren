@@ -24,16 +24,11 @@ ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
 
 WORKDIR /app
 
-# 复制根目录和所有子包的 package.json
-COPY package*.json ./
-COPY packages/backend/package*.json ./packages/backend/
-COPY packages/shared-components/package*.json ./packages/shared-components/
+# 先复制所有源代码
+COPY . .
 
 # 在根目录安装依赖（monorepo），跳过自动执行 postinstall
 RUN npm install --ignore-scripts
-
-# 复制所有源代码
-COPY . .
 
 WORKDIR /app/packages/backend
 
@@ -62,8 +57,7 @@ RUN mkdir -p \
   output/frames \
   data
 
-# 复制入口脚本
-COPY packages/backend/docker-entrypoint.sh /app/packages/backend/docker-entrypoint.sh
+# 确保入口脚本有执行权限
 RUN chmod +x /app/packages/backend/docker-entrypoint.sh
 
 EXPOSE 3001

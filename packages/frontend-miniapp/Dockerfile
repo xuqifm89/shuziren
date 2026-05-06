@@ -1,16 +1,11 @@
 FROM node:18-alpine AS builder
 WORKDIR /app
 
-# 复制根目录配置文件和所有子包的 package.json
-COPY package*.json ./
-COPY packages/shared-components/package*.json ./packages/shared-components/
-COPY packages/frontend-miniapp/package*.json ./packages/frontend-miniapp/
+# 先复制所有源代码
+COPY . .
 
 # 在根目录安装依赖（monorepo），跳过自动执行 postinstall
 RUN npm install --ignore-scripts
-
-# 复制所有源代码
-COPY . .
 
 # 构建 h5 前端
 RUN npm run build:h5
