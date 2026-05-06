@@ -299,7 +299,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
-const API_BASE = 'http://localhost:3001/api/users'
+const API_BASE = '/api/users'
 
 const loading = ref(false)
 const submitting = ref(false)

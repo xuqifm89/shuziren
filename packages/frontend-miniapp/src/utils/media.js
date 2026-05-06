@@ -1,4 +1,4 @@
-const BASE_URL = 'http://localhost:3001'
+const BASE_URL = ''
 
 export function resolveMediaUrl(url) {
   if (!url) return ''

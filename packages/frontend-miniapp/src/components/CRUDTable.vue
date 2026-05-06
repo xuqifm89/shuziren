@@ -328,7 +328,7 @@ const titleEditModalVisible = ref(false)
 const currentEditRow = ref(null)
 const editContent = ref('')
 
-const uploadUrl = computed(() => `http://localhost:3001/api/${props.apiPath}/upload`)
+const uploadUrl = computed(() => `/api/${props.apiPath}/upload`)
 
 const fetchData = async () => {
   loading.value = true
@@ -336,7 +336,7 @@ const fetchData = async () => {
     const currentUser = getCurrentUser()
     const userId = currentUser?.id || null
     
-    let url = `http://localhost:3001/api/${props.apiPath}?page=${currentPage.value}&size=${pageSize.value}`
+    let url = `/api/${props.apiPath}?page=${currentPage.value}&size=${pageSize.value}`
     
     if (userId) {
       url += `&userId=${userId}`
@@ -362,7 +362,7 @@ const fetchData = async () => {
 
 const fetchTags = async () => {
   try {
-    const response = await fetch(`http://localhost:3001/api/${props.apiPath}/tags/list`)
+    const response = await fetch(`/api/${props.apiPath}/tags/list`)
     const data = await response.json()
     availableTags.value = data
   } catch (error) {
@@ -422,8 +422,8 @@ const handleSubmit = async () => {
     const currentUser = getCurrentUser()
     const method = isEditing.value ? 'PUT' : 'POST'
     const url = isEditing.value
-      ? `http://localhost:3001/api/${props.apiPath}/${formData.value.id}`
-      : `http://localhost:3001/api/${props.apiPath}`
+      ? `/api/${props.apiPath}/${formData.value.id}`
+      : `/api/${props.apiPath}`
 
     // 准备提交数据
     const submitData = { ...formData.value }
@@ -456,7 +456,7 @@ const handleDelete = async (id) => {
   if (!confirm('确定要删除这条记录吗？')) return
 
   try {
-    const response = await fetch(`http://localhost:3001/api/${props.apiPath}/${id}`, {
+    const response = await fetch(`/api/${props.apiPath}/${id}`, {
       method: 'DELETE'
     })
 
@@ -497,7 +497,7 @@ const handleFileUpload = async (event, prop) => {
   }
 
   try {
-    const response = await fetch(`http://localhost:3001/api/${props.apiPath}/upload`, {
+    const response = await fetch(`/api/${props.apiPath}/upload`, {
       method: 'POST',
       body: uploadFormData
     })
@@ -560,7 +560,7 @@ const saveTitleEdit = async () => {
   }
   
   try {
-    const response = await fetch(`http://localhost:3001/api/${props.apiPath}/${currentEditRow.value.id}`, {
+    const response = await fetch(`/api/${props.apiPath}/${currentEditRow.value.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
@@ -604,7 +604,7 @@ const isVideoFile = (path) => {
 const getFullUrl = (path) => {
   if (!path) return ''
   if (path.startsWith('http')) return path
-  return `http://localhost:3001${path}`
+  return path
 }
 
 const getFileName = (path) => {

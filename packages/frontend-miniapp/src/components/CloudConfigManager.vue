@@ -567,7 +567,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
-const API_BASE = 'http://localhost:3001/api/cloud-config'
+const API_BASE = '/api/cloud-config'
 
 const saving = ref(false)
 const testing = ref(false)

@@ -176,7 +176,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import api from '../api/index.js'
 
-const MEDIA_BASE = 'http://localhost:3001'
+const MEDIA_BASE = ''
 
 const props = defineProps({ videoPath: { type: String, default: '' } })
 
