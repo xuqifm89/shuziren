@@ -1,414 +1,203 @@
-# 拾光引擎 - 云端部署指南
+# 拾光引擎 - 服务器部署指南
 
-> AI驱动的数字人视频生成平台 - 完整的容器化部署方案
+## 🚀 快速开始（推荐使用简化版）
 
----
+### 第一步：连接到服务器
 
-## 📋 项目全景图
-
-| 组件 | 技术栈 | 端口 |
-|------|--------|------|
-| **后端 API** | Node.js + Express | 3001 |
-| **PC Web 前端** | Vue3 + Vite | 80 |
-| **管理后台** | Vue3 + Element Plus | 8080 |
-| **H5 移动端** | uni-app + Vue3 | 8081 |
-| **PostgreSQL** | 关系数据库 | 5432 |
-| **Redis** | 缓存 | 6379 |
-| **MinIO** | 对象存储 | 9000/9001 |
-
----
-
-## 🚀 云端部署完整流程
-
-### 阶段一：准备工作
-
-#### 1. 准备云服务器
-推荐配置：
-- **CPU**: 4核+
-- **内存**: 8GB+
-- **硬盘**: 100GB+ SSD（存储视频文件）
-- **系统**: Ubuntu 20.04+ / CentOS 8+
-
-#### 2. 安装必要环境（在云服务器上执行）
 ```bash
-# 安装 Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-
-# 安装 Docker Compose
-sudo apt-get update
-sudo apt-get install docker-compose-plugin
-
-# 验证安装
-docker --version
-docker compose version
+ssh root@43.155.188.118
 ```
 
-#### 3. 准备域名（可选但推荐）
-购买域名并配置 DNS 解析：
-- `your-domain.com` → PC 前端
-- `admin.your-domain.com` → 管理后台
-- `m.your-domain.com` → H5 移动端
-- `api.your-domain.com` → 后端 API
+### 第二步：检查 Docker 环境
 
----
-
-### 阶段二：项目代码上传到服务器
-
-#### 方式 A：使用 Git（推荐）
 ```bash
-# 1. 在本地初始化 Git（如果还没有）
-cd /Users/ahs/Downloads/shuziren
-git init
-git add .
-git commit -m "Initial commit"
+# 检查 Docker 版本
+docker --version
 
-# 2. 推送到 GitHub/GitLab/Gitee（创建仓库后）
-git remote add origin https://github.com/your-username/shuziren.git
-git branch -M main
-git push -u origin main
+# 检查 Docker Compose 版本
+docker compose version
 
-# 3. 在云服务器上拉取代码
-ssh root@your-server-ip
+# 如果没有 Docker Compose，安装它
+apt update && apt install -y docker-compose
+```
+
+### 第三步：克隆项目代码
+
+```bash
 cd /opt
-git clone https://github.com/your-username/shuziren.git
+git clone https://github.com/xuqifm89/shuziren.git
 cd shuziren
 ```
 
-#### 方式 B：直接上传文件（不使用 Git）
+### 第四步：配置环境变量
+
 ```bash
-# 在本地使用 scp 或 rsync 上传到服务器
-cd /Users/ahs/Downloads/shuziren
-scp -r . root@your-server-ip:/opt/shuziren/
+# 复制环境变量配置文件
+cp docker/.env.production docker/.env
+
+# 编辑环境变量（可选，大部分已配置好）
+nano docker/.env
 ```
 
----
-
-### 阶段三：配置环境变量（在云服务器上执行）
-
-#### 1. 复制并编辑生产环境配置
-```bash
-# 进入服务器上的项目目录
-cd /opt/shuziren
-
-# 复制示例配置文件
-cp docker/.env.production .env
-```
-
-#### 2. 修改 `.env` 文件的关键配置
-```bash
-# 使用编辑器打开 .env 文件
-nano .env
-```
-
+**可选修改的内容：**
 ```env
-# ==========================================
-# 必填配置（必须修改！）
-# ==========================================
+# JWT 密钥（建议修改为更安全的值）
+JWT_SECRET=your_random_jwt_secret_key_here_at_least_32_chars
+ADMIN_JWT_SECRET=your_admin_jwt_secret_key_here
 
-# 1. 数据库密码（强密码）
-DB_PASSWORD=your_strong_password_here
-
-# 2. JWT密钥（至少32位随机字符串）
-JWT_SECRET=your_very_long_random_secret_key_here_at_least_32_chars
-ADMIN_JWT_SECRET=another_very_long_random_secret_key_here
-
-# 3. MinIO 对象存储密钥
-MINIO_ACCESS_KEY=minio_admin
-MINIO_SECRET_KEY=minio_strong_password_here
-
-# 4. CORS 允许的域名（改为你的实际域名）
-CORS_ORIGINS=https://your-domain.com,https://admin.your-domain.com,https://m.your-domain.com,https://api.your-domain.com
-
-# ==========================================
-# 可选配置
-# ==========================================
-
-# 端口映射（根据需要调整）
-BACKEND_PORT=3001
-FRONTEND_PORT=80
-ADMIN_PORT=8080
-H5_PORT=8081
-MINIO_API_PORT=9000
-MINIO_CONSOLE_PORT=9001
-
-# 微信小程序（如需要）
-WX_APPID=your_wx_appid
-WX_APPSECRET=your_wx_appsecret
+# 修改 CORS 允许的域名（如果有自定义域名）
+CORS_ORIGINS=http://your-domain.com,http://admin.your-domain.com
 ```
 
-#### 3. ⚠️ 重要：确保 .env 不被提交到 Git
+### 第五步：启动服务（简化版，使用 SQLite）
+
 ```bash
-# 检查 .gitignore 是否包含 .env
-cat .gitignore
-
-# 如果没有，添加 .env 到 .gitignore
-echo ".env" >> .gitignore
-```
-
----
-
-### 阶段四：构建并启动 Docker 服务
-
-#### 1. 在云服务器上执行
-```bash
-# 进入项目目录
-cd /opt/shuziren
-
-# 确保 .env 文件已正确配置
-ls -la
-
-# 构建并启动所有服务
+# 进入 docker 目录
 cd docker
-docker compose up -d --build
+
+# 构建并启动所有服务（后台运行，使用简化版配置）
+docker compose -f docker-compose.simple.yml up -d --build
 
 # 查看服务状态
-docker compose ps
+docker compose -f docker-compose.simple.yml ps
 
-# 查看实时日志
-docker compose logs -f
+# 查看日志
+docker compose -f docker-compose.simple.yml logs -f
 ```
 
-#### 2. 服务启动后的默认访问地址
-| 服务 | 访问地址 |
-|------|---------|
-| **PC Web 前端** | `http://your-server-ip/` |
-| **管理后台** | `http://your-server-ip:8080/` |
-| **H5 移动端** | `http://your-server-ip:8081/` |
-| **后端 API** | `http://your-server-ip:3001/` |
-| **MinIO 控制台** | `http://your-server-ip:9001/` |
+### 第六步：访问服务
+
+部署成功后，可以通过以下地址访问：
+
+| 服务 | 地址 |
+|------|------|
+| PC 前端 | http://43.155.188.118 |
+| 管理后台 | http://43.155.188.118:8080 |
+| H5 移动端 | http://43.155.188.118:8081 |
+| 后端 API | http://43.155.188.118:3001 |
 
 ---
 
-### 阶段五：配置反向代理与 HTTPS（推荐使用 Nginx）
+## 📋 常用管理命令
 
-#### 1. 在云服务器上安装 Nginx
+### 查看服务状态
 ```bash
-sudo apt-get update
-sudo apt-get install nginx
-```
-
-#### 2. 配置 Nginx 反向代理（示例）
-```bash
-# 创建配置文件
-sudo nano /etc/nginx/sites-available/shuziren
-```
-
-```nginx
-# PC 前端
-server {
-    listen 80;
-    server_name your-domain.com;
-    
-    location / {
-        proxy_pass http://localhost:80;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-
-# 管理后台
-server {
-    listen 80;
-    server_name admin.your-domain.com;
-    
-    location / {
-        proxy_pass http://localhost:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-
-# H5 移动端
-server {
-    listen 80;
-    server_name m.your-domain.com;
-    
-    location / {
-        proxy_pass http://localhost:8081;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-
-# 后端 API
-server {
-    listen 80;
-    server_name api.your-domain.com;
-    
-    location / {
-        proxy_pass http://localhost:3001;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-```
-
-#### 3. 启用配置并重启 Nginx
-```bash
-# 启用站点
-sudo ln -s /etc/nginx/sites-available/shuziren /etc/nginx/sites-enabled/
-
-# 测试配置
-sudo nginx -t
-
-# 重启 Nginx
-sudo systemctl restart nginx
-```
-
-#### 4. 配置 HTTPS（使用 Let's Encrypt 免费证书）
-```bash
-# 安装 Certbot
-sudo apt-get install certbot python3-certbot-nginx
-
-# 自动申请并配置证书
-sudo certbot --nginx -d your-domain.com -d admin.your-domain.com -d m.your-domain.com -d api.your-domain.com
-
-# 证书会自动续期，无需手动操作
-```
-
----
-
-### 阶段六：数据持久化与备份
-
-#### 1. Docker 数据卷位置
-项目已配置好持久化数据卷：
-- `shuziren_postgres_data` - PostgreSQL 数据
-- `shuziren_redis_data` - Redis 数据
-- `shuziren_minio_data` - MinIO 对象存储
-- `shuziren_assets` - 上传的媒体文件
-- `shuziren_output` - 生成的视频文件
-- `shuziren_data` - 其他数据
-
-#### 2. 定期备份脚本（示例）
-```bash
-#!/bin/bash
-# backup.sh
-
-BACKUP_DIR=/opt/backups
-DATE=$(date +%Y%m%d_%H%M%S)
-
-mkdir -p $BACKUP_DIR
-
-# 备份数据库
-docker exec shuziren-postgres pg_dump -U postgres shuziren > $BACKUP_DIR/db_$DATE.sql
-
-# 备份媒体文件
-docker run --rm -v shuziren_assets:/data -v $BACKUP_DIR:/backup alpine tar czf /backup/assets_$DATE.tar.gz -C /data .
-
-# 保留最近 7 天的备份
-find $BACKUP_DIR -name "*.tar.gz" -mtime +7 -delete
-find $BACKUP_DIR -name "*.sql" -mtime +7 -delete
-```
-
-设置定时任务：
-```bash
-crontab -e
-# 每天凌晨 2 点备份
-0 2 * * * /opt/shuziren/backup.sh
-```
-
----
-
-### 阶段七：CI/CD 自动化（可选，推荐使用 GitHub Actions）
-
-在项目根目录创建 `.github/workflows/deploy.yml`：
-```yaml
-name: Deploy to Production
-
-on:
-  push:
-    branches: [ main ]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Deploy to Server
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.SERVER_HOST }}
-        username: ${{ secrets.SERVER_USER }}
-        key: ${{ secrets.SERVER_SSH_KEY }}
-        script: |
-          cd /opt/shuziren
-          git pull origin main
-          cd docker
-          docker compose up -d --build
-```
-
----
-
-## 🔧 常见运维命令
-
-```bash
-# 查看所有服务状态
 cd /opt/shuziren/docker
-docker compose ps
-
-# 查看某个服务的日志
-docker compose logs -f backend
-docker compose logs -f postgres
-
-# 重启所有服务
-docker compose restart
-
-# 停止所有服务
-docker compose down
-
-# 更新代码后重新构建
-git pull
-docker compose up -d --build
-
-# 进入某个容器
-docker compose exec backend sh
-docker compose exec postgres psql -U postgres shuziren
+docker compose -f docker-compose.simple.yml ps
 ```
 
----
-
-## 📊 监控与维护
-
-### 1. 健康检查
-- 后端健康检查：`http://your-server-ip:3001/api/health`
-- PostgreSQL：自动健康检查
-- Redis：自动健康检查
-- MinIO：自动健康检查
-
-### 2. 日志查看
+### 查看日志
 ```bash
 # 查看所有服务日志
-docker compose logs -f --tail=100
+docker compose -f docker-compose.simple.yml logs -f
 
 # 查看特定服务日志
-docker compose logs -f backend
+docker compose -f docker-compose.simple.yml logs -f backend
+docker compose -f docker-compose.simple.yml logs -f frontend-pc
+```
+
+### 重启服务
+```bash
+# 重启所有服务
+docker compose -f docker-compose.simple.yml restart
+
+# 重启单个服务
+docker compose -f docker-compose.simple.yml restart backend
+```
+
+### 停止服务
+```bash
+# 停止但保留数据
+docker compose -f docker-compose.simple.yml stop
+
+# 停止并删除容器（数据保留）
+docker compose -f docker-compose.simple.yml down
+
+# 停止并删除所有（包括数据，谨慎使用！）
+docker compose -f docker-compose.simple.yml down -v
+```
+
+### 更新代码并重新部署
+```bash
+cd /opt/shuziren
+
+# 拉取最新代码
+git pull
+
+# 重新构建并启动
+cd docker
+docker compose -f docker-compose.simple.yml up -d --build
 ```
 
 ---
 
-## ⚠️ 安全注意事项
+## 🔒 防火墙配置
 
-1. **不要提交 `.env` 文件到 Git** - 确保 `.gitignore` 包含 `.env`
-2. **定期更新密码和密钥**
-3. **配置防火墙**，只开放必要的端口（80, 443）
-4. **启用 HTTPS**，不要使用 HTTP 传输敏感数据
-5. **定期备份数据**
+### 开放必要端口
+```bash
+# Ubuntu 使用 ufw
+ufw allow 80/tcp
+ufw allow 8080/tcp
+ufw allow 8081/tcp
+ufw allow 3001/tcp
+ufw enable
+```
+
+或者使用 iptables：
+```bash
+iptables -I INPUT -p tcp --dport 80 -j ACCEPT
+iptables -I INPUT -p tcp --dport 8080 -j ACCEPT
+iptables -I INPUT -p tcp --dport 8081 -j ACCEPT
+iptables -I INPUT -p tcp --dport 3001 -j ACCEPT
+```
 
 ---
 
-## 📚 相关文档
+## 💾 数据备份
 
-- [架构设计文档](./ARCHITECTURE.md)
-- [API接口文档](./docs/api.md)
-- [项目README](./README.md)
+### 备份数据库
+```bash
+# 备份 Postgres 数据
+docker exec shuziren-postgres pg_dump -U postgres shuziren > backup.sql
+
+# 或者备份整个数据卷
+docker run --rm -v shuziren_postgres_data:/data -v $(pwd):/backup alpine tar czf /backup/postgres_backup.tar.gz /data
+```
+
+### 备份上传文件
+```bash
+docker run --rm -v shuziren_assets:/data -v $(pwd):/backup alpine tar czf /backup/assets_backup.tar.gz /data
+```
 
 ---
 
-**维护团队**: ShuZiRen Team  
-**最后更新**: 2026-05-06
+## ⚠️ 常见问题
+
+### 1. 端口被占用
+如果端口被占用，可以修改 `docker/.env` 文件中的端口：
+```env
+FRONTEND_PORT=8080
+ADMIN_PORT=8081
+H5_PORT=8082
+BACKEND_PORT=3002
+```
+
+### 2. 内存不足
+如果服务器内存小于 2GB，可能需要关闭一些服务，修改 `docker-compose.yml` 注释掉不需要的服务。
+
+### 3. 构建失败
+如果构建过程中出现问题，可以尝试：
+```bash
+# 清理缓存重新构建
+docker compose build --no-cache
+docker compose up -d
+```
+
+---
+
+## 📞 需要帮助？
+
+查看日志找问题：
+```bash
+docker compose logs backend
+```

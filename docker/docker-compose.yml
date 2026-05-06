@@ -16,7 +16,7 @@ services:
   # ==========================================
   backend:
     build:
-      context: ./packages/backend
+      context: ../packages/backend
       dockerfile: Dockerfile
     container_name: shuziren-backend
     ports:
