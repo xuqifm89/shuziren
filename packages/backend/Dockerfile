@@ -24,12 +24,10 @@ ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
 
 WORKDIR /app
 
-# 复制后端源代码和 package.json
-COPY packages/backend/package*.json ./
-COPY packages/shared-components ./packages/shared-components
-COPY packages/backend ./
+# 直接复制当前目录的所有内容（后端代码）
+COPY . .
 
-# 直接在后端目录安装依赖
+# 安装依赖
 RUN npm install --ignore-scripts
 
 # 重新编译 sqlite3
