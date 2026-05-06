@@ -1,0 +1,44 @@
+{
+  "name": "shuziren-monorepo",
+  "version": "1.0.0",
+  "description": "拾光引擎 - AI驱动的数字人视频生成平台 (Monorepo)",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace=packages/backend",
+    "dev:pc": "npm run dev --workspace=packages/frontend-pc",
+    "dev:admin": "npm run dev --workspace=packages/admin-panel",
+    "dev:miniapp": "npm run dev:h5 --workspace=packages/frontend-miniapp",
+    "dev:desktop": "npm run dev --workspace=packages/desktop-app",
+    "build:all": "npm run build --workspaces",
+    "build:backend": "npm run build --workspace=packages/backend",
+    "build:pc": "npm run build --workspace=packages/frontend-pc",
+    "build:admin": "npm run build --workspace=packages/admin-panel",
+    "build:miniapp": "npm run build:mp-weixin --workspace=packages/frontend-miniapp",
+    "build:h5": "npm run build:h5 --workspace=packages/frontend-miniapp",
+    "build:desktop": "npm run build --workspace=packages/desktop-app",
+    "install:all": "npm install",
+    "postinstall": "node scripts/postinstall.js",
+    "clean": "rm -rf packages/*/dist packages/*/node_modules packages/*/release",
+    "docker:up": "docker-compose -f docker/docker-compose.yml up -d",
+    "docker:down": "docker-compose -f docker/docker-compose.yml down",
+    "test": "npm test --workspaces",
+    "lint": "eslint packages/*/src --ext .js,.vue"
+  },
+  "devDependencies": {
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.4",
+    "rollup": "4.24.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "overrides": {
+    "rollup": "4.24.0"
+  },
+  "author": "ShuZiRen Team",
+  "license": "MIT"
+}

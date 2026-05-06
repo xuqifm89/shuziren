@@ -1,0 +1,35 @@
+@media (max-width: 768px) {
+  .mobile-optimize {
+    /* 移动端优化基础样式 */
+  }
+}
+
+/* 移动端通用组件样式 */
+.mobile-component {
+  padding: 8px;
+  font-size: 14px;
+}
+
+/* 表单元素移动端样式 */
+.mobile-component :deep(.el-input__wrapper),
+.mobile-component :deep(.el-textarea__inner) {
+  padding: 10px 12px !important;
+  font-size: 14px !important;
+}
+
+/* 按钮移动端样式 */
+.mobile-component :deep(.el-button) {
+  padding: 10px 16px !important;
+  font-size: 14px !important;
+}
+
+/* 表格移动端样式 */
+.mobile-component :deep(.el-table) {
+  font-size: 12px;
+}
+
+/* 弹窗移动端样式 */
+.mobile-component :deep(.el-dialog) {
+  width: 95% !important;
+  margin: 2.5vh auto !important;
+}

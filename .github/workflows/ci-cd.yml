@@ -1,0 +1,165 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Run postinstall
+        run: node scripts/postinstall.js
+
+      - name: Lint
+        run: npm run lint --if-present
+
+      - name: Test Backend
+        run: |
+          cd packages/backend
+          npm test --if-present
+
+  build-frontend-pc:
+    name: Build Frontend PC
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm install --legacy-peer-deps
+      - run: node scripts/postinstall.js
+      - run: cd packages/frontend-pc && npx vite build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-pc-dist
+          path: packages/frontend-pc/dist
+
+  build-admin-panel:
+    name: Build Admin Panel
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm install --legacy-peer-deps
+      - run: node scripts/postinstall.js
+      - run: cd packages/admin-panel && npx vite build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: admin-panel-dist
+          path: packages/admin-panel/dist
+
+  build-miniapp-h5:
+    name: Build MiniApp H5
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm install --legacy-peer-deps
+      - run: node scripts/postinstall.js
+      - run: cd packages/frontend-miniapp && npx uni build -p h5
+      - uses: actions/upload-artifact@v4
+        with:
+          name: miniapp-h5-dist
+          path: packages/frontend-miniapp/dist/build/h5
+
+  build-docker:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: [build-frontend-pc, build-admin-panel, build-miniapp-h5]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./packages/backend
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/shuziren-backend:latest
+            ${{ secrets.DOCKER_USERNAME }}/shuziren-backend:${{ github.sha }}
+
+      - name: Build and push Frontend PC
+        uses: docker/build-push-action@v5
+        with:
+          context: ./packages/frontend-pc
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/shuziren-frontend-pc:latest
+
+      - name: Build and push Admin Panel
+        uses: docker/build-push-action@v5
+        with:
+          context: ./packages/admin-panel
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/shuziren-admin-panel:latest
+
+      - name: Build and push H5
+        uses: docker/build-push-action@v5
+        with:
+          context: ./packages/frontend-miniapp
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/shuziren-frontend-h5:latest
+
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build-docker
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /opt/shuziren
+            docker compose -f docker/docker-compose.yml pull
+            docker compose -f docker/docker-compose.yml up -d --remove-orphans
+            docker image prune -f
+            echo "Deploy completed at $(date)"

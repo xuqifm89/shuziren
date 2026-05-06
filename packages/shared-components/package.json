@@ -1,0 +1,11 @@
+{
+  "name": "@shuziren/shared-components",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.js",
+  "module": "src/index.js",
+  "peerDependencies": {
+    "vue": "^3.4.0",
+    "element-plus": "^2.7.0"
+  }
+}

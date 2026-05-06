@@ -1,0 +1,118 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+
+# Production
+dist/
+build/
+release/
+.next/
+out/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.test.local
+.env.production.local
+*.env
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Database
+**/data/*.sqlite
+**/data/*.db
+**/*.sqlite-journal
+
+# Media files (user generated)
+**/assets/voices/*
+**/assets/dubbings/*
+**/assets/musics/*
+**/assets/portraits/**
+**/assets/uploads/*
+**/assets/works/*
+**/output/**/*
+
+# Keep directory structure
+!**/assets/voices/.gitkeep
+!**/assets/dubbings/.gitkeep
+!**/assets/musics/.gitkeep
+!**/assets/portraits/.gitkeep
+!**/assets/uploads/.gitkeep
+!**/assets/works/.gitkeep
+!**/output/.gitkeep
+
+# Electron
+packages/desktop-app/release/
+packages/desktop-app/dist-electron/
+
+# Build artifacts
+*.tgz
+.tar.gz
+
+# Turbo
+.turbo
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Archive / scratch directories
+_archive/
+sss/
+~/
+
+# Downloaded temp files
+*.html
+!packages/*/src/**/*.html
+!packages/*/public/**/*.html
+!packages/*/index.html
+
+# One-time utility scripts (already used)
+# fix-paths.js etc.
+
+# Binary tools (platform-specific, should be installed via system or brew)
+# ffmpeg
+# ffprobe
+
+# External dependencies (not part of this repo)
+packages/backend/social-auto-upload/
+
+# Large binary files (should be installed separately)
+ffmpeg
+ffprobe
+
+# Large font files (can be downloaded separately)
+packages/backend/assets/fonts/Songti.ttc
+packages/backend/assets/fonts/STHeiti.ttc
+packages/backend/assets/fonts/Hiragino.ttc
+packages/backend/assets/fonts/ArialUnicode.ttf
