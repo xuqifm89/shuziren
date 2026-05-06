@@ -7,8 +7,12 @@ cleanup() {
   if [ -n "$XVFB_PID" ]; then
     kill $XVFB_PID 2>/dev/null || true
   fi
+  rm -f /tmp/.X99-lock
 }
 trap cleanup EXIT INT TERM
+
+# 清理旧的锁文件
+rm -f /tmp/.X99-lock
 
 if command -v Xvfb > /dev/null 2>&1; then
   echo "🖥️  Starting Xvfb on display :99..."

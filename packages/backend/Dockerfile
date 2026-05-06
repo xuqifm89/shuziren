@@ -24,11 +24,19 @@ ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
 
 WORKDIR /app
 
-# 先复制所有源代码
-COPY . .
+# 先只复制 package.json 相关文件
+COPY package*.json ./
+COPY packages/shared-components/package*.json ./packages/shared-components/
+COPY packages/backend/package*.json ./packages/backend/
 
 # 在根目录安装依赖（monorepo），跳过自动执行 postinstall
 RUN npm install --ignore-scripts
+
+# 重新编译 sqlite3
+RUN npm rebuild --prefix /app/packages/backend sqlite3
+
+# 再复制源代码
+COPY . .
 
 WORKDIR /app/packages/backend
 
