@@ -19,7 +19,7 @@ services:
       dockerfile: Dockerfile
     container_name: shuziren-backend
     ports:
-      - "${BACKEND_PORT:-3001}:3001"
+      - "127.0.0.1:3001:3001"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=3001
@@ -70,7 +70,7 @@ services:
       dockerfile: packages/frontend-pc/Dockerfile
     container_name: shuziren-frontend-pc
     ports:
-      - "${FRONTEND_PORT:-80}:80"
+      - "127.0.0.1:80:80"
     depends_on:
       - backend
     restart: unless-stopped
@@ -83,7 +83,7 @@ services:
       dockerfile: packages/admin-panel/Dockerfile
     container_name: shuziren-admin-panel
     ports:
-      - "${ADMIN_PORT:-8080}:80"
+      - "127.0.0.1:8080:80"
     depends_on:
       - backend
     restart: unless-stopped
@@ -99,7 +99,7 @@ services:
       dockerfile: packages/frontend-miniapp/Dockerfile
     container_name: shuziren-frontend-h5
     ports:
-      - "${H5_PORT:-8081}:80"
+      - "127.0.0.1:8081:80"
     depends_on:
       - backend
     restart: unless-stopped
