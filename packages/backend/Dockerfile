@@ -24,7 +24,7 @@ ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm install --omit=dev
 
 COPY . .
 

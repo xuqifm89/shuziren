@@ -19,7 +19,8 @@ out/
 .env.development.local
 .test.local
 .env.production.local
-*.env
+# 但保留示例配置文件
+!docker/.env.production
 
 # Logs
 npm-debug.log*
