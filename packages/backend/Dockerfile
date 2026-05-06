@@ -29,11 +29,11 @@ RUN npm install --omit=dev
 COPY . .
 
 RUN if [ ! -d "social-auto-upload" ]; then \
-      git clone https://github.com/dreammis/social-auto-upload.git social-auto-upload 2>/dev/null || true; \
-    fi \
-    && cd social-auto-upload \
-    && if command -v uv &> /dev/null; then uv sync 2>/dev/null || uv pip install -r requirements.txt 2>/dev/null || true; fi \
-    && cd /app
+      git clone https://github.com/dreammis/social-auto-upload.git social-auto-upload 2>&1 || true; \
+    fi; \
+    if [ -d "social-auto-upload" ]; then \
+      cd social-auto-upload && if command -v uv &> /dev/null; then uv sync 2>&1 || uv pip install -r requirements.txt 2>&1 || true; fi && cd /app; \
+    fi
 
 RUN mkdir -p \
   assets/voices \
