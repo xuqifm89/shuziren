@@ -41,7 +41,7 @@
       <scroll-view scroll-x class="horizontal-scroll" v-if="dubbingList.length > 0">
         <view :class="['voice-card', selectedDubbing && selectedDubbing.id === d.id ? 'active' : '']" v-for="d in dubbingList" :key="d.id" @tap="selectedDubbing = d">
           <text class="voice-name">{{ d.fileName || d.name || '配音' }}</text>
-          <text class="voice-play" @tap.stop="playDubbingPreview(d)">▶</text>
+          <text :class="['voice-play', playingDubbingId === d.id ? 'playing' : '']" @tap.stop="playDubbingPreview(d)">{{ playingDubbingId === d.id ? '⏹' : '▶' }}</text>
         </view>
       </scroll-view>
       <view v-else class="empty-hint"><text class="empty-text">暂无配音</text></view>
@@ -98,6 +98,7 @@ const selectedAvatar = ref(null)
 const dubbingList = ref([])
 const selectedDubbing = ref(null)
 const videoPath = ref(uni.getStorageSync('avatarVideo_videoPath') || '')
+const playingDubbingId = ref(null)
 
 const showPreviewModal = ref(false)
 const previewFileUrl = ref('')
@@ -154,11 +155,20 @@ function closePreviewModal() {
 }
 
 function playDubbingPreview(d) {
-  if (innerAudioCtx) { innerAudioCtx.stop(); innerAudioCtx = null }
+  if (playingDubbingId.value === d.id) {
+    if (innerAudioCtx) { innerAudioCtx.stop(); innerAudioCtx.destroy(); innerAudioCtx = null }
+    playingDubbingId.value = null
+    return
+  }
+  if (innerAudioCtx) { innerAudioCtx.stop(); innerAudioCtx.destroy(); innerAudioCtx = null }
   const url = d.fileUrl || d.filePath
   if (url) {
+    playingDubbingId.value = d.id
     innerAudioCtx = uni.createInnerAudioContext()
     innerAudioCtx.src = resolveMediaUrl(url)
+    innerAudioCtx.onEnded(() => { playingDubbingId.value = null; innerAudioCtx = null })
+    innerAudioCtx.onError(() => { playingDubbingId.value = null; innerAudioCtx = null })
+    innerAudioCtx.onStop(() => { playingDubbingId.value = null })
     innerAudioCtx.play()
   }
 }
@@ -272,6 +282,7 @@ function useVideo() { emit('video-generated', videoPath.value) }
 .voice-card.active { background: rgba(102,126,234,0.15); border-color: rgba(102,126,234,0.3); }
 .voice-name { font-size: 24rpx; color: rgba(255,255,255,0.8); max-width: 200rpx; overflow: hidden; text-overflow: ellipsis; }
 .voice-play { font-size: 22rpx; color: #667eea; padding: 8rpx 16rpx; background: rgba(102,126,234,0.1); border-radius: 8rpx; margin-left: 12rpx; }
+.voice-play.playing { color: #f56c6c; background: rgba(245,108,108,0.15); }
 
 .empty-hint { padding: 24rpx; text-align: center; }
 .empty-text { font-size: 24rpx; color: rgba(255,255,255,0.3); }

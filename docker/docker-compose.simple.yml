@@ -21,7 +21,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:-shuziren_jwt_secret_2024}
       - ADMIN_JWT_SECRET=${ADMIN_JWT_SECRET:-shuziren_admin_jwt_secret_2024}
       
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://43.155.188.118,http://43.155.188.118:8080,http://43.155.188.118:8081}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://43.155.188.118,http://43.155.188.118:8080,http://43.155.188.118:8081,https://m.dsface.com,https://dsface.com}
       
       - LOG_LEVEL=info
       - CONFIG_ENCRYPTION_KEY=shuziren_config_encryption_key_2024

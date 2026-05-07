@@ -11,7 +11,10 @@ RUN apk add --no-cache \
     xvfb \
     dbus \
     git \
-    && rm -rf /var/cache/apk/*
+    curl \
+    ca-certificates \
+    && rm -rf /var/cache/apk/* \
+    && update-ca-certificates
 
 ENV CHROME_PATH=/usr/bin/chromium-browser
 ENV DISPLAY=:99

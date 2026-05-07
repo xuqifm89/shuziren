@@ -146,7 +146,7 @@ router.post('/extract-from-video', async (req, res) => {
   console.log('═'.repeat(60));
   console.log('请求参数:', JSON.stringify(req.body, null, 2));
 
-  const userId = req.user?.id || null;
+  const userId = req.userId || req.user?.id || null;
 
   try {
     let { url, modelType, asrModel, roleSplit, useTestVideo } = req.body;

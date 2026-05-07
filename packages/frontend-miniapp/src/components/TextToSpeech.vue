@@ -12,7 +12,7 @@
       <scroll-view scroll-x class="horizontal-scroll" v-if="voiceList.length > 0">
         <view :class="['voice-card', selectedVoice && selectedVoice.id === v.id ? 'active' : '']" v-for="v in voiceList" :key="v.id" @tap="selectedVoice = v">
           <text class="voice-name">{{ v.fileName || v.name || '音色' }}</text>
-          <text class="voice-play" @tap.stop="playVoice(v)">▶</text>
+          <text :class="['voice-play', playingVoiceId === v.id ? 'playing' : '']" @tap.stop="playVoice(v)">{{ playingVoiceId === v.id ? '⏹' : '▶' }}</text>
         </view>
       </scroll-view>
       <view v-else class="empty-hint"><text class="empty-text">暂无音色</text></view>
@@ -61,6 +61,7 @@ const audioPath = ref(uni.getStorageSync('tts_audioPath') || '')
 const isPlaying = ref(false)
 const currentTime = ref(0)
 const duration = ref(0)
+const playingVoiceId = ref(null)
 
 const progressPercent = computed(() => duration.value ? (currentTime.value / duration.value) * 100 : 0)
 const currentTimeText = computed(() => formatTime(currentTime.value))
@@ -91,6 +92,7 @@ onMounted(async () => {
 })
 
 let innerAudioCtx = null
+let voicePreviewCtx = null
 
 function initPlayer() {
   if (innerAudioCtx) { innerAudioCtx.stop(); innerAudioCtx.destroy(); innerAudioCtx = null }
@@ -127,12 +129,21 @@ function seekAudio(e) {
 }
 
 function playVoice(v) {
-  if (innerAudioCtx) { innerAudioCtx.stop(); isPlaying.value = false }
+  if (playingVoiceId.value === v.id) {
+    if (voicePreviewCtx) { voicePreviewCtx.stop(); voicePreviewCtx.destroy(); voicePreviewCtx = null }
+    playingVoiceId.value = null
+    return
+  }
+  if (voicePreviewCtx) { voicePreviewCtx.stop(); voicePreviewCtx.destroy(); voicePreviewCtx = null }
   const url = v.fileUrl || v.filePath
   if (url) {
-    const ctx = uni.createInnerAudioContext()
-    ctx.src = resolveMediaUrl(url)
-    ctx.play()
+    playingVoiceId.value = v.id
+    voicePreviewCtx = uni.createInnerAudioContext()
+    voicePreviewCtx.src = resolveMediaUrl(url)
+    voicePreviewCtx.onEnded(() => { playingVoiceId.value = null; voicePreviewCtx = null })
+    voicePreviewCtx.onError(() => { playingVoiceId.value = null; voicePreviewCtx = null })
+    voicePreviewCtx.onStop(() => { playingVoiceId.value = null })
+    voicePreviewCtx.play()
   }
 }
 
@@ -210,6 +221,7 @@ async function handleGenerate() {
 
 onUnmounted(() => {
   if (innerAudioCtx) { innerAudioCtx.stop(); innerAudioCtx.destroy(); innerAudioCtx = null }
+  if (voicePreviewCtx) { voicePreviewCtx.stop(); voicePreviewCtx.destroy(); voicePreviewCtx = null }
 })
 </script>
 
@@ -226,6 +238,7 @@ onUnmounted(() => {
 .voice-card.active { background: rgba(102,126,234,0.15); border-color: rgba(102,126,234,0.3); }
 .voice-name { font-size: 24rpx; color: rgba(255,255,255,0.8); max-width: 200rpx; overflow: hidden; text-overflow: ellipsis; }
 .voice-play { font-size: 22rpx; color: #667eea; padding: 8rpx 16rpx; background: rgba(102,126,234,0.1); border-radius: 8rpx; margin-left: 12rpx; }
+.voice-play.playing { color: #f56c6c; background: rgba(245,108,108,0.15); }
 .empty-hint { padding: 24rpx; text-align: center; }
 .empty-text { font-size: 24rpx; color: rgba(255,255,255,0.3); }
 .action-btn { width: 100%; height: 80rpx; background: linear-gradient(135deg,#667eea,#764ba2); color: #fff; font-size: 28rpx; font-weight: 600; border-radius: 12rpx; border: none; }
