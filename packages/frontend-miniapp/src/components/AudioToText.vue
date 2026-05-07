@@ -265,10 +265,10 @@ async function handleCheckViolation() {
         })
       }
 
-      if (analysisResult.overallJudgment.includes('严重')) {
+      if (analysisResult.overallJudgment?.includes('严重')) {
         analysisResult.judgmentClass = 'severe'
         analysisResult.judgmentIcon = '🔴'
-      } else if (analysisResult.overallJudgment.includes('轻度')) {
+      } else if (analysisResult.overallJudgment?.includes('轻度')) {
         analysisResult.judgmentClass = 'mild'
         analysisResult.judgmentIcon = '🟡'
       } else {

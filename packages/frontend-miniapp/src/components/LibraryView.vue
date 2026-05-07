@@ -138,7 +138,7 @@ const filteredList = computed(() => {
   const kw = searchKeyword.value.toLowerCase()
   return items.value.filter(item => {
     const name = (item.fileName || item.title || item.name || '').toLowerCase()
-    return name.includes(kw)
+    return name?.includes(kw) ?? false
   })
 })
 

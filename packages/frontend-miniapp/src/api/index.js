@@ -29,7 +29,7 @@ const api = {
       if (res.statusCode >= 400) throw new Error(res.data?.error || res.data?.message || `请求失败(${res.statusCode})`)
       return res.data
     } catch (e) {
-      if (e.message === '未授权' || e.message.includes('请重新登录') || e.message.includes('密码错误') || e.message.includes('不存在')) throw e
+      if (e.message === '未授权' || e.message?.includes('请重新登录') || e.message?.includes('密码错误') || e.message?.includes('不存在')) throw e
       throw new Error(e.message || '网络请求失败')
     }
   },

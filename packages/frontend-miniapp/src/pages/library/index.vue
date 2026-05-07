@@ -72,7 +72,7 @@ const activeItems = computed(() => {
   if (!keyword.value) return items
   return items.filter(item => {
     const name = item.fileName || item.name || item.title || ''
-    return name.toLowerCase().includes(keyword.value.toLowerCase())
+    return name?.toLowerCase().includes(keyword.value.toLowerCase()) ?? false
   })
 })
 
