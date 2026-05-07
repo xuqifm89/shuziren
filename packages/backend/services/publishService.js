@@ -14,11 +14,21 @@ const PLATFORM_NAMES = {
 
 const SAU_PROJECT_DIR = path.join(__dirname, '..', 'social-auto-upload');
 
+let _sauAvailable = null;
+
+async function isSauAvailable() {
+  if (_sauAvailable !== null) return _sauAvailable;
+  _sauAvailable = fs.existsSync(SAU_PROJECT_DIR) && fs.existsSync(path.join(SAU_PROJECT_DIR, 'pyproject.toml'));
+  return _sauAvailable;
+}
+
 function getUvPath() {
   if (process.env.UV_PATH && fs.existsSync(process.env.UV_PATH)) return process.env.UV_PATH;
   const candidates = [
-    '/Users/ahs/.local/bin/uv',
+    '/root/.local/bin/uv',
+    '/root/.cargo/bin/uv',
     path.join(process.env.HOME || '', '.local', 'bin', 'uv'),
+    path.join(process.env.HOME || '', '.cargo', 'bin', 'uv'),
     '/usr/local/bin/uv',
     '/opt/homebrew/bin/uv',
   ];
@@ -46,8 +56,8 @@ function getSauSpawnArgs(cliArgs) {
 }
 
 async function checkSauInstalled() {
-  if (!fs.existsSync(SAU_PROJECT_DIR)) {
-    console.warn(`⚠️ social-auto-upload 目录不存在: ${SAU_PROJECT_DIR}`);
+  if (!(await isSauAvailable())) {
+    console.warn(`⚠️ social-auto-upload 目录不存在或未配置: ${SAU_PROJECT_DIR}`);
     return false;
   }
   return new Promise((resolve) => {
@@ -55,9 +65,13 @@ async function checkSauInstalled() {
     const child = spawn(command, args, { ...options, timeout: 10000 });
     child.on('error', (err) => {
       console.warn(`⚠️ sau 命令执行失败: ${err.message}`);
+      _sauAvailable = false;
       resolve(false);
     });
-    child.on('close', (code) => resolve(code === 0));
+    child.on('close', (code) => {
+      if (code !== 0) _sauAvailable = false;
+      resolve(code === 0);
+    });
   });
 }
 
@@ -322,6 +336,7 @@ async function batchUpload({ userId, accounts, videoPath, thumbnailPath, title, 
 module.exports = {
   PLATFORMS,
   PLATFORM_NAMES,
+  isSauAvailable,
   checkSauInstalled,
   loginAccount,
   checkAccount,

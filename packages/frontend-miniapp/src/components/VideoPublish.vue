@@ -302,7 +302,12 @@ async function fetchAccounts() {
   try {
     const user = getUserId()
     accounts.value = await api.get('/publish/accounts', { userId: user?.id })
-  } catch (err) { console.error('获取账号列表失败:', err) }
+  } catch (err) {
+    console.error('获取账号列表失败:', err)
+    if (err.message?.includes('502') || err.message?.includes('请求失败')) {
+      uni.showToast({ title: '服务暂时不可用，请稍后重试', icon: 'none' })
+    }
+  }
 }
 
 async function handleAddAccount() {

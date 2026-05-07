@@ -7,6 +7,8 @@ const publishService = require('../services/publishService');
 const fileService = require('../services/fileService');
 const { authMiddleware } = require('../middleware/auth');
 
+const SAU_PROJECT_DIR = path.join(__dirname, '..', 'social-auto-upload');
+
 function resolvePath(p) {
   if (!p) return p;
   if (p.startsWith('http://localhost:') || p.startsWith('http://127.0.0.1:')) {
@@ -45,10 +47,28 @@ router.get('/platforms', (req, res) => {
   res.json(platforms);
 });
 
+router.get('/status', async (req, res) => {
+  try {
+    const sauAvailable = await publishService.isSauAvailable();
+    res.json({
+      sauAvailable,
+      sauDir: SAU_PROJECT_DIR,
+      sauDirExists: require('fs').existsSync(SAU_PROJECT_DIR)
+    });
+  } catch (error) {
+    res.json({ sauAvailable: false, error: error.message });
+  }
+});
+
 router.get('/check-sau', async (req, res) => {
   try {
-    const installed = await publishService.checkSauInstalled();
-    res.json({ installed });
+    const installed = await publishService.isSauAvailable();
+    if (installed) {
+      const sauOk = await publishService.checkSauInstalled();
+      res.json({ installed: sauOk });
+    } else {
+      res.json({ installed: false });
+    }
   } catch (error) {
     res.json({ installed: false });
   }
@@ -60,6 +80,7 @@ router.get('/accounts', async (req, res) => {
     const accounts = await publishRepo.findAllAccounts(userId || '00000000-0000-0000-0000-000000000000');
     res.json(accounts);
   } catch (error) {
+    console.error('❌ 获取账号列表失败:', error.message);
     res.status(500).json({ error: error.message });
   }
 });

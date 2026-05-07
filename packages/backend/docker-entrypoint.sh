@@ -6,6 +6,9 @@ cleanup() {
   if [ -n "$XVFB_PID" ]; then
     kill $XVFB_PID 2>/dev/null || true
   fi
+  if [ -n "$SAU_INSTALL_PID" ]; then
+    kill $SAU_INSTALL_PID 2>/dev/null || true
+  fi
   rm -f /tmp/.X99-lock
 }
 trap cleanup EXIT INT TERM
@@ -23,20 +26,25 @@ else
   echo "Xvfb not found, headed browser mode may not work"
 fi
 
-if [ -n "$SAU_REPO_URL" ] && [ ! -d "/app/social-auto-upload" ]; then
-  echo "Cloning social-auto-upload from $SAU_REPO_URL..."
-  git clone "$SAU_REPO_URL" /app/social-auto-upload 2>/dev/null || true
-fi
-
-if [ -d "/app/social-auto-upload" ]; then
-  echo "Installing social-auto-upload dependencies..."
-  cd /app/social-auto-upload
-  if command -v uv > /dev/null 2>&1; then
-    uv sync 2>/dev/null || uv pip install -r requirements.txt 2>/dev/null || pip3 install -r requirements.txt 2>/dev/null || true
+install_sau_deps() {
+  if [ -n "$SAU_REPO_URL" ] && [ ! -d "/app/social-auto-upload" ]; then
+    echo "Cloning social-auto-upload from $SAU_REPO_URL..."
+    git clone "$SAU_REPO_URL" /app/social-auto-upload 2>/dev/null || true
   fi
-  cd /app
-  echo "social-auto-upload setup done"
-fi
+
+  if [ -d "/app/social-auto-upload" ]; then
+    echo "Installing social-auto-upload dependencies (background)..."
+    cd /app/social-auto-upload
+    if command -v uv > /dev/null 2>&1; then
+      uv sync 2>/dev/null || uv pip install -r requirements.txt 2>/dev/null || pip3 install -r requirements.txt 2>/dev/null || true
+    fi
+    cd /app
+    echo "social-auto-upload setup done"
+  fi
+}
+
+install_sau_deps &
+SAU_INSTALL_PID=$!
 
 echo "Starting application: $@"
 exec "$@"

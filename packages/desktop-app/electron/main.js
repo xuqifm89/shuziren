@@ -1,7 +1,8 @@
 import { app, BrowserWindow, shell, ipcMain, dialog, protocol, Tray, Menu, nativeImage } from 'electron'
 import path, { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import { autoUpdater } from 'electron-updater'
+import electronUpdater from 'electron-updater'
+const { autoUpdater } = electronUpdater
 import { fileURLToPath } from 'url'
 import { exec, spawn } from 'child_process'
 import { existsSync, mkdirSync, copyFileSync, statSync, readdirSync, statSync as fsStat, createReadStream, writeFileSync, readFileSync, unlinkSync, renameSync } from 'fs'

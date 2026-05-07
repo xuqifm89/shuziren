@@ -222,10 +222,22 @@ async function initDatabase() {
   }
 }
 
-async function startServer() {
-  await initDatabase();
+process.on('uncaughtException', (err) => {
+  console.error('❌ Uncaught Exception:', err.message);
+  console.error(err.stack);
+});
 
-  // 初始化默认云端配置
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection:', reason);
+});
+
+async function startServer() {
+  try {
+    await initDatabase();
+  } catch (dbErr) {
+    console.error('⚠️ Database initialization failed (non-fatal):', dbErr.message);
+  }
+
   try {
     const { initializeDefaultConfigs } = require('./scripts/initDefaultConfigs');
     await initializeDefaultConfigs();
@@ -250,4 +262,7 @@ async function startServer() {
   server.keepAliveTimeout = 600000;
 }
 
-startServer();
+startServer().catch(err => {
+  console.error('❌ Failed to start server:', err.message);
+  process.exit(1);
+});
