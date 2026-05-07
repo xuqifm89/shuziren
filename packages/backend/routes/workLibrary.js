@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const workLibraryRepository = require('../repositories/WorkLibraryRepository');
 const fileService = require('../services/fileService');
+const { authMiddleware } = require('../middleware/auth');
 
 const worksDir = path.join(__dirname, '../assets/works');
 fileService.ensureDir(worksDir);
@@ -22,29 +23,24 @@ const upload = multer({ storage });
 
 router.get('/', async (req, res) => {
   try {
-    const { userId, status, category, tag, isPublic, published } = req.query;
+    const authUserId = req.userId;
+    const queryUserId = req.query.userId;
+    const effectiveUserId = authUserId || queryUserId;
+    const { status, category, tag, published } = req.query;
     
     let works;
-    if (userId && status) {
-      works = await workLibraryRepository.findByUserIdAndStatus(userId, status);
-    } else if (userId && category) {
-      works = await workLibraryRepository.findByUserIdAndCategory(userId, category);
-    } else if (userId && tag) {
-      works = await workLibraryRepository.findByUserIdAndTag(userId, tag);
-    } else if (userId) {
-      works = await workLibraryRepository.findByUserIdWithPublic(userId);
-    } else if (status) {
-      works = await workLibraryRepository.findByStatus(status);
-    } else if (category) {
-      works = await workLibraryRepository.findByCategory(category);
-    } else if (tag) {
-      works = await workLibraryRepository.findByTag(tag);
+    if (effectiveUserId && status) {
+      works = await workLibraryRepository.findByUserIdAndStatus(effectiveUserId, status);
+    } else if (effectiveUserId && category) {
+      works = await workLibraryRepository.findByUserIdAndCategory(effectiveUserId, category);
+    } else if (effectiveUserId && tag) {
+      works = await workLibraryRepository.findByUserIdAndTag(effectiveUserId, tag);
+    } else if (effectiveUserId) {
+      works = await workLibraryRepository.findByUserIdWithPublic(effectiveUserId);
     } else if (published === 'true') {
       works = await workLibraryRepository.findPublished();
-    } else if (isPublic === 'true') {
-      works = await workLibraryRepository.findPublic();
     } else {
-      works = await workLibraryRepository.findAll();
+      works = await workLibraryRepository.findPublic();
     }
     
     res.json(works);
@@ -56,12 +52,14 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const work = await workLibraryRepository.findById(req.params.id);
-    if (work) {
-      await workLibraryRepository.incrementViewCount(req.params.id);
-      res.json(work);
-    } else {
-      res.status(404).json({ error: '作品不存在' });
+    if (!work) {
+      return res.status(404).json({ error: '作品不存在' });
     }
+    if (!work.isPublic && work.userId !== req.userId) {
+      return res.status(404).json({ error: '作品不存在' });
+    }
+    await workLibraryRepository.incrementViewCount(req.params.id);
+    res.json(work);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -70,7 +68,8 @@ router.get('/:id', async (req, res) => {
 router.get('/search/:keyword', async (req, res) => {
   try {
     const works = await workLibraryRepository.searchByKeyword(req.params.keyword);
-    res.json(works);
+    const filtered = works.filter(w => w.isPublic || w.userId === req.userId);
+    res.json(filtered);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -78,7 +77,7 @@ router.get('/search/:keyword', async (req, res) => {
 
 router.get('/tags/list', async (req, res) => {
   try {
-    const { userId } = req.query;
+    const userId = req.userId || req.query.userId;
     const tags = await workLibraryRepository.getAllTags(userId || '00000000-0000-0000-0000-000000000000');
     res.json(tags);
   } catch (error) {
@@ -88,7 +87,7 @@ router.get('/tags/list', async (req, res) => {
 
 router.get('/categories/list', async (req, res) => {
   try {
-    const { userId } = req.query;
+    const userId = req.userId || req.query.userId;
     const categories = await workLibraryRepository.getAllCategories(userId || '00000000-0000-0000-0000-000000000000');
     res.json(categories);
   } catch (error) {
@@ -105,16 +104,16 @@ router.get('/stats/:userId', async (req, res) => {
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
   try {
-    const { userId, title, description, content, audioPath, videoPath, coverPath, status, duration, size, tags, category, isPublic, sourceType, voiceId, portraitId } = req.body;
+    const { title, description, content, audioPath, videoPath, coverPath, status, duration, size, tags, category, isPublic, sourceType, voiceId, portraitId } = req.body;
     
     if (!title) {
       return res.status(400).json({ error: '标题不能为空' });
     }
     
     const work = await workLibraryRepository.create({
-      userId: userId || '00000000-0000-0000-0000-000000000000',
+      userId: req.userId,
       title,
       description,
       content,
@@ -138,8 +137,15 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', authMiddleware, async (req, res) => {
   try {
+    const existing = await workLibraryRepository.findById(req.params.id);
+    if (!existing) {
+      return res.status(404).json({ error: '作品不存在' });
+    }
+    if (existing.userId !== req.userId) {
+      return res.status(403).json({ error: '无权修改此作品' });
+    }
     const { title, description, content, audioPath, videoPath, coverPath, status, duration, size, tags, category, isPublic, sourceType, voiceId, portraitId } = req.body;
     const work = await workLibraryRepository.update(req.params.id, {
       title,
@@ -169,8 +175,15 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-router.put('/:id/publish', async (req, res) => {
+router.put('/:id/publish', authMiddleware, async (req, res) => {
   try {
+    const existing = await workLibraryRepository.findById(req.params.id);
+    if (!existing) {
+      return res.status(404).json({ error: '作品不存在' });
+    }
+    if (existing.userId !== req.userId) {
+      return res.status(403).json({ error: '无权发布此作品' });
+    }
     const work = await workLibraryRepository.publish(req.params.id);
     if (work) {
       res.json(work);
@@ -208,11 +221,14 @@ router.put('/:id/share', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authMiddleware, async (req, res) => {
   try {
     const work = await workLibraryRepository.findById(req.params.id);
     if (!work) {
       return res.status(404).json({ error: '作品不存在' });
+    }
+    if (work.userId !== req.userId) {
+      return res.status(403).json({ error: '无权删除此作品' });
     }
     
     await workLibraryRepository.delete(req.params.id);

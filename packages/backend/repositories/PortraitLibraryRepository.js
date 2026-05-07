@@ -33,6 +33,13 @@ class PortraitLibraryRepository {
     });
   }
 
+  async findPublicByType(type) {
+    return await PortraitLibrary.findAll({
+      where: { isPublic: true, type },
+      order: [['createdAt', 'DESC']]
+    });
+  }
+
   async findByUserIdWithPublic(userId) {
     return await PortraitLibrary.findAll({
       where: {

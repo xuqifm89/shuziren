@@ -444,7 +444,8 @@ router.get('/meta/categories', async (req, res) => {
 // 客户端同步接口（获取当前用户的所有有效配置）
 router.get('/sync/client', async (req, res) => {
   try {
-    const { userId, clientVersion } = req.query;
+    const userId = req.userId || req.query.userId;
+    const { clientVersion } = req.query;
     
     if (!userId) {
       return res.status(400).json({

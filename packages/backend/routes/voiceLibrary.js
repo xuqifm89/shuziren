@@ -6,6 +6,7 @@ const { execSync } = require('child_process');
 const voiceLibraryRepository = require('../repositories/VoiceLibraryRepository');
 const fileService = require('../services/fileService');
 const { getFfmpegPath } = require('../utils/ffmpegHelper');
+const { authMiddleware } = require('../middleware/auth');
 
 const ffmpegPath = getFfmpegPath() || 'ffmpeg';
 
@@ -26,15 +27,15 @@ const upload = multer({ storage });
 
 router.get('/', async (req, res) => {
   try {
-    const { userId, isPublic } = req.query;
+    const authUserId = req.userId;
+    const queryUserId = req.query.userId;
+    const effectiveUserId = authUserId || queryUserId;
     
     let voices;
-    if (userId) {
-      voices = await voiceLibraryRepository.findByUserIdWithPublic(userId);
-    } else if (isPublic === 'true') {
-      voices = await voiceLibraryRepository.findPublic();
+    if (effectiveUserId) {
+      voices = await voiceLibraryRepository.findByUserIdWithPublic(effectiveUserId);
     } else {
-      voices = await voiceLibraryRepository.findAll();
+      voices = await voiceLibraryRepository.findPublic();
     }
     
     if (!Array.isArray(voices)) {
@@ -67,11 +68,13 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const voice = await voiceLibraryRepository.findById(req.params.id);
-    if (voice) {
-      res.json(voice);
-    } else {
-      res.status(404).json({ error: '音色不存在' });
+    if (!voice) {
+      return res.status(404).json({ error: '音色不存在' });
     }
+    if (!voice.isPublic && voice.userId !== req.userId) {
+      return res.status(404).json({ error: '音色不存在' });
+    }
+    res.json(voice);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -80,7 +83,8 @@ router.get('/:id', async (req, res) => {
 router.get('/search/:keyword', async (req, res) => {
   try {
     const voices = await voiceLibraryRepository.searchByKeyword(req.params.keyword);
-    res.json(voices);
+    const filtered = voices.filter(v => v.isPublic || v.userId === req.userId);
+    res.json(filtered);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -136,12 +140,12 @@ router.post('/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
   try {
-    const { userId, fileName, fileUrl, fileSize, duration, description, tags, isPublic } = req.body;
+    const { fileName, fileUrl, fileSize, duration, description, tags, isPublic } = req.body;
     
     const voice = await voiceLibraryRepository.create({
-      userId: userId || '00000000-0000-0000-0000-000000000000',
+      userId: req.userId,
       fileName,
       fileUrl,
       fileSize,
@@ -157,8 +161,15 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', authMiddleware, async (req, res) => {
   try {
+    const existing = await voiceLibraryRepository.findById(req.params.id);
+    if (!existing) {
+      return res.status(404).json({ error: '音色不存在' });
+    }
+    if (existing.userId !== req.userId) {
+      return res.status(403).json({ error: '无权修改此音色' });
+    }
     const { fileName, fileUrl, fileSize, duration, description, tags, isPublic } = req.body;
     const voice = await voiceLibraryRepository.update(req.params.id, {
       fileName,
@@ -193,11 +204,14 @@ router.put('/:id/usage', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authMiddleware, async (req, res) => {
   try {
     const voice = await voiceLibraryRepository.findById(req.params.id);
     if (!voice) {
       return res.status(404).json({ error: '音色不存在' });
+    }
+    if (voice.userId !== req.userId) {
+      return res.status(403).json({ error: '无权删除此音色' });
     }
     
     const filePath = path.join(voicesDir, voice.fileName);

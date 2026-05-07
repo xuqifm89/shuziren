@@ -6,6 +6,7 @@ const { execSync } = require('child_process');
 const portraitLibraryRepository = require('../repositories/PortraitLibraryRepository');
 const fileService = require('../services/fileService');
 const { getFfmpegPath } = require('../utils/ffmpegHelper');
+const { authMiddleware } = require('../middleware/auth');
 
 const ffmpegPath = getFfmpegPath() || 'ffmpeg';
 
@@ -97,19 +98,20 @@ const getVideoDuration = (filePath) => {
 
 router.get('/', async (req, res) => {
   try {
-    const { userId, type, isPublic } = req.query;
+    const authUserId = req.userId;
+    const queryUserId = req.query.userId;
+    const effectiveUserId = authUserId || queryUserId;
+    const { type } = req.query;
     
     let portraits;
-    if (userId && type) {
-      portraits = await portraitLibraryRepository.findByUserIdAndType(userId, type);
-    } else if (userId) {
-      portraits = await portraitLibraryRepository.findByUserIdWithPublic(userId);
+    if (effectiveUserId && type) {
+      portraits = await portraitLibraryRepository.findByUserIdAndType(effectiveUserId, type);
+    } else if (effectiveUserId) {
+      portraits = await portraitLibraryRepository.findByUserIdWithPublic(effectiveUserId);
     } else if (type) {
-      portraits = await portraitLibraryRepository.findByType(type);
-    } else if (isPublic === 'true') {
-      portraits = await portraitLibraryRepository.findPublic();
+      portraits = await portraitLibraryRepository.findPublicByType(type);
     } else {
-      portraits = await portraitLibraryRepository.findAll();
+      portraits = await portraitLibraryRepository.findPublic();
     }
     
     if (!Array.isArray(portraits)) {
@@ -164,11 +166,13 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const portrait = await portraitLibraryRepository.findById(req.params.id);
-    if (portrait) {
-      res.json(portrait);
-    } else {
-      res.status(404).json({ error: '肖像不存在' });
+    if (!portrait) {
+      return res.status(404).json({ error: '肖像不存在' });
     }
+    if (!portrait.isPublic && portrait.userId !== req.userId) {
+      return res.status(404).json({ error: '肖像不存在' });
+    }
+    res.json(portrait);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -177,7 +181,8 @@ router.get('/:id', async (req, res) => {
 router.get('/search/:keyword', async (req, res) => {
   try {
     const portraits = await portraitLibraryRepository.searchByKeyword(req.params.keyword);
-    res.json(portraits);
+    const filtered = portraits.filter(p => p.isPublic || p.userId === req.userId);
+    res.json(filtered);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -225,12 +230,12 @@ router.post('/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
   try {
-    const { userId, fileName, fileUrl, fileSize, type, width, height, duration, description, tags, isPublic } = req.body;
+    const { fileName, fileUrl, fileSize, type, width, height, duration, description, tags, isPublic } = req.body;
     
     const portrait = await portraitLibraryRepository.create({
-      userId: userId || '00000000-0000-0000-0000-000000000000',
+      userId: req.userId,
       fileName,
       fileUrl,
       fileSize,
@@ -249,8 +254,15 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', authMiddleware, async (req, res) => {
   try {
+    const existing = await portraitLibraryRepository.findById(req.params.id);
+    if (!existing) {
+      return res.status(404).json({ error: '肖像不存在' });
+    }
+    if (existing.userId !== req.userId) {
+      return res.status(403).json({ error: '无权修改此肖像' });
+    }
     const { fileName, fileUrl, fileSize, type, width, height, duration, description, tags, isPublic } = req.body;
     const portrait = await portraitLibraryRepository.update(req.params.id, {
       fileName,
@@ -288,11 +300,14 @@ router.put('/:id/usage', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authMiddleware, async (req, res) => {
   try {
     const portrait = await portraitLibraryRepository.findById(req.params.id);
     if (!portrait) {
       return res.status(404).json({ error: '肖像不存在' });
+    }
+    if (portrait.userId !== req.userId) {
+      return res.status(403).json({ error: '无权删除此肖像' });
     }
     
     const dir = portrait.type === 'video' ? videoDir : imageDir;

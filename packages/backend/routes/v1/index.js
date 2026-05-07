@@ -17,6 +17,7 @@ router.use('/work-library', require('../workLibrary'));
 router.use('/publish', require('../publish'));
 router.use('/runninghub', require('../runningHub'));
 router.use('/tasks', require('../tasks'));
+router.use('/cloud-config', require('../cloudConfig'));
 router.use('/ws', require('../websocket'));
 
 module.exports = router;

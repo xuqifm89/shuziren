@@ -377,7 +377,12 @@ const fetchData = async () => {
     Object.keys(props.initialFilter).forEach(key => {
       url += `&${key}=${props.initialFilter[key]}`
     })
-    const response = await fetch(url, { signal })
+    const headers = {}
+    const token = localStorage.getItem('token')
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+    const response = await fetch(url, { signal, headers })
     if (isUnmounted) return
     const data = await response.json()
     if (isUnmounted) return
@@ -398,7 +403,14 @@ const fetchData = async () => {
 const fetchTags = async () => {
   if (isUnmounted) return
   try {
-    const response = await fetch(`${base.value}/api/${props.apiPath}/tags/list`)
+    const headers = {}
+    const token = localStorage.getItem('token')
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+    const currentUser = getCurrentUser()
+    const userId = currentUser?.id || ''
+    const response = await fetch(`${base.value}/api/${props.apiPath}/tags/list?userId=${userId}`, { headers })
     if (isUnmounted) return
     const data = await response.json()
     if (isUnmounted) return
@@ -464,12 +476,18 @@ const handleSubmit = async () => {
 
     const submitData = { ...formData.value }
     if (!isEditing.value) {
-      submitData.userId = currentUser.id
+      submitData.userId = currentUser?.id
+    }
+
+    const headers = { 'Content-Type': 'application/json' }
+    const token = localStorage.getItem('token')
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
     }
 
     const response = await fetch(url, {
       method,
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(submitData)
     })
 
@@ -495,8 +513,14 @@ const handleDelete = async (id) => {
   if (!confirm('确定要删除这条记录吗？')) return
 
   try {
+    const headers = {}
+    const token = localStorage.getItem('token')
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
     const response = await fetch(`${base.value}/api/${props.apiPath}/${id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers
     })
 
     if (isUnmounted) return
@@ -613,9 +637,14 @@ const saveTitleEdit = async () => {
   }
 
   try {
+    const headers = { 'Content-Type': 'application/json' }
+    const token = localStorage.getItem('token')
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
     const response = await fetch(`${base.value}/api/${props.apiPath}/${currentEditRow.value.id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         ...currentEditRow.value,
         content: editContent.value

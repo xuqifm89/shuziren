@@ -6,6 +6,7 @@ const { execSync } = require('child_process');
 const dubbingLibraryRepository = require('../repositories/DubbingLibraryRepository');
 const fileService = require('../services/fileService');
 const { getFfmpegPath } = require('../utils/ffmpegHelper');
+const { authMiddleware } = require('../middleware/auth');
 
 const ffmpegPath = getFfmpegPath() || 'ffmpeg';
 
@@ -26,15 +27,15 @@ const upload = multer({ storage });
 
 router.get('/', async (req, res) => {
   try {
-    const { userId, isPublic } = req.query;
+    const authUserId = req.userId;
+    const queryUserId = req.query.userId;
+    const effectiveUserId = authUserId || queryUserId;
     
     let dubbings;
-    if (userId) {
-      dubbings = await dubbingLibraryRepository.findByUserIdWithPublic(userId);
-    } else if (isPublic === 'true') {
-      dubbings = await dubbingLibraryRepository.findPublic();
+    if (effectiveUserId) {
+      dubbings = await dubbingLibraryRepository.findByUserIdWithPublic(effectiveUserId);
     } else {
-      dubbings = await dubbingLibraryRepository.findAll();
+      dubbings = await dubbingLibraryRepository.findPublic();
     }
     
     if (!Array.isArray(dubbings)) {
@@ -67,11 +68,13 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const dubbing = await dubbingLibraryRepository.findById(req.params.id);
-    if (dubbing) {
-      res.json(dubbing);
-    } else {
-      res.status(404).json({ error: '配音不存在' });
+    if (!dubbing) {
+      return res.status(404).json({ error: '配音不存在' });
     }
+    if (!dubbing.isPublic && dubbing.userId !== req.userId) {
+      return res.status(404).json({ error: '配音不存在' });
+    }
+    res.json(dubbing);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -80,7 +83,8 @@ router.get('/:id', async (req, res) => {
 router.get('/search/:keyword', async (req, res) => {
   try {
     const dubbings = await dubbingLibraryRepository.searchByKeyword(req.params.keyword);
-    res.json(dubbings);
+    const filtered = dubbings.filter(d => d.isPublic || d.userId === req.userId);
+    res.json(filtered);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -136,12 +140,12 @@ router.post('/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
   try {
-    const { userId, fileName, fileUrl, fileSize, duration, description, tags, isPublic } = req.body;
+    const { fileName, fileUrl, fileSize, duration, description, tags, isPublic } = req.body;
     
     const dubbing = await dubbingLibraryRepository.create({
-      userId: userId || '00000000-0000-0000-0000-000000000000',
+      userId: req.userId,
       fileName,
       fileUrl,
       fileSize,
@@ -157,8 +161,15 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', authMiddleware, async (req, res) => {
   try {
+    const existing = await dubbingLibraryRepository.findById(req.params.id);
+    if (!existing) {
+      return res.status(404).json({ error: '配音不存在' });
+    }
+    if (existing.userId !== req.userId) {
+      return res.status(403).json({ error: '无权修改此配音' });
+    }
     const { fileName, fileUrl, fileSize, duration, description, tags, isPublic } = req.body;
     const dubbing = await dubbingLibraryRepository.update(req.params.id, {
       fileName,
@@ -193,11 +204,14 @@ router.put('/:id/usage', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authMiddleware, async (req, res) => {
   try {
     const dubbing = await dubbingLibraryRepository.findById(req.params.id);
     if (!dubbing) {
       return res.status(404).json({ error: '配音不存在' });
+    }
+    if (dubbing.userId !== req.userId) {
+      return res.status(403).json({ error: '无权删除此配音' });
     }
     
     const filePath = path.join(dubbingsDir, dubbing.fileName);
