@@ -6,7 +6,7 @@ const { execSync } = require('child_process');
 const dubbingLibraryRepository = require('../repositories/DubbingLibraryRepository');
 const fileService = require('../services/fileService');
 const { getFfmpegPath } = require('../utils/ffmpegHelper');
-const { authMiddleware } = require('../middleware/auth');
+const { optionalAuth } = require('../middleware/auth');
 
 const ffmpegPath = getFfmpegPath() || 'ffmpeg';
 
@@ -25,11 +25,9 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-router.get('/', async (req, res) => {
+router.get('/', optionalAuth, async (req, res) => {
   try {
-    const authUserId = req.userId;
-    const queryUserId = req.query.userId;
-    const effectiveUserId = authUserId || queryUserId;
+    const effectiveUserId = req.userId;
     
     let dubbings;
     if (effectiveUserId) {

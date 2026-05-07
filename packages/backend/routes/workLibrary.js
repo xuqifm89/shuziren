@@ -4,7 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const workLibraryRepository = require('../repositories/WorkLibraryRepository');
 const fileService = require('../services/fileService');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, optionalAuth } = require('../middleware/auth');
 
 const worksDir = path.join(__dirname, '../assets/works');
 fileService.ensureDir(worksDir);
@@ -21,11 +21,9 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-router.get('/', async (req, res) => {
+router.get('/', optionalAuth, async (req, res) => {
   try {
-    const authUserId = req.userId;
-    const queryUserId = req.query.userId;
-    const effectiveUserId = authUserId || queryUserId;
+    const effectiveUserId = req.userId;
     const { status, category, tag, published } = req.query;
     
     let works;

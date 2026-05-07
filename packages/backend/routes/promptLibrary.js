@@ -1,13 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const promptLibraryRepository = require('../repositories/PromptLibraryRepository');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, optionalAuth } = require('../middleware/auth');
 
-router.get('/', async (req, res) => {
+router.get('/', optionalAuth, async (req, res) => {
   try {
-    const authUserId = req.userId;
-    const queryUserId = req.query.userId;
-    const effectiveUserId = authUserId || queryUserId;
+    const effectiveUserId = req.userId;
     const { category, tag, modelType } = req.query;
     
     let prompts;

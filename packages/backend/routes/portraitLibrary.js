@@ -6,7 +6,7 @@ const { execSync } = require('child_process');
 const portraitLibraryRepository = require('../repositories/PortraitLibraryRepository');
 const fileService = require('../services/fileService');
 const { getFfmpegPath } = require('../utils/ffmpegHelper');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, optionalAuth } = require('../middleware/auth');
 
 const ffmpegPath = getFfmpegPath() || 'ffmpeg';
 
@@ -96,11 +96,9 @@ const getVideoDuration = (filePath) => {
   }
 };
 
-router.get('/', async (req, res) => {
+router.get('/', optionalAuth, async (req, res) => {
   try {
-    const authUserId = req.userId;
-    const queryUserId = req.query.userId;
-    const effectiveUserId = authUserId || queryUserId;
+    const effectiveUserId = req.userId;
     const { type } = req.query;
     
     let portraits;
