@@ -15,17 +15,18 @@
     <scroll-view scroll-y class="lib-list">
       <view class="lib-item" v-for="item in filteredList" :key="item.id">
         <view class="item-main" @tap="handlePreview(item)">
-          <view v-if="config.type === 'voiceLibrary' || config.type === 'dubbingLibrary' || config.type === 'musicLibrary'" class="item-preview">
-            <text class="preview-icon">🔊</text>
+          <view v-if="isAudioType" class="item-preview audio-preview" @tap.stop="toggleAudio(item)">
+            <text class="preview-icon">{{ playingItemId === item.id ? '⏸' : '🔊' }}</text>
           </view>
           <view v-else-if="config.type === 'portraitLibrary'" class="item-preview">
-            <image v-if="item.filePath || item.fileUrl" :src="resolveUrl(item.filePath || item.fileUrl)" class="preview-img" mode="aspectFill" />
+            <image v-if="getPortraitImageUrl(item)" :src="getPortraitImageUrl(item)" class="preview-img" mode="aspectFill" />
             <text v-else class="preview-icon">👤</text>
           </view>
-          <view v-else-if="config.type === 'workLibrary'" class="item-preview">
+          <view v-else-if="config.type === 'workLibrary'" class="item-preview video-preview">
             <text class="preview-icon">🎬</text>
+            <text class="play-badge">▶</text>
           </view>
-          <view v-else class="item-preview">
+          <view v-else class="item-preview text-preview" @tap.stop="previewText(item)">
             <text class="preview-icon">📄</text>
           </view>
           <view class="item-info">
@@ -34,14 +35,45 @@
           </view>
         </view>
         <view class="item-actions">
-          <text class="action-edit" @tap="editItem = item; showAddForm = true">编辑</text>
-          <text class="action-delete" @tap="handleDelete(item)">删除</text>
+          <text v-if="playingItemId === item.id" class="action-stop" @tap.stop="stopAudio">停止</text>
+          <text class="action-edit" @tap.stop="editItem = item; showAddForm = true">编辑</text>
+          <text class="action-delete" @tap.stop="handleDelete(item)">删除</text>
         </view>
       </view>
       <view v-if="filteredList.length === 0" class="empty-state">
         <text class="empty-text">暂无数据</text>
       </view>
     </scroll-view>
+
+    <view v-if="showPreviewModal" class="modal-mask" @tap.self="closePreviewModal">
+      <view class="preview-modal-content">
+        <view class="preview-modal-header">
+          <text class="preview-modal-title">{{ previewModalTitle }}</text>
+          <text class="preview-modal-close" @tap="closePreviewModal">✕</text>
+        </view>
+        <scroll-view scroll-y class="preview-modal-body">
+          <text class="preview-modal-text">{{ previewModalContent }}</text>
+        </scroll-view>
+      </view>
+    </view>
+
+    <view v-if="showVideoModal" class="modal-mask" @tap.self="closeVideoModal">
+      <view class="video-modal-content">
+        <view class="video-modal-header">
+          <text class="video-modal-title">{{ videoModalTitle }}</text>
+          <text class="video-modal-close" @tap="closeVideoModal">✕</text>
+        </view>
+        <video
+          :src="videoModalUrl"
+          class="video-modal-player"
+          controls
+          autoplay
+          show-fullscreen-btn
+          show-play-btn
+          object-fit="contain"
+        />
+      </view>
+    </view>
 
     <view v-if="showAddForm" class="modal-mask" @tap.self="closeForm">
       <view class="modal-content">
@@ -72,7 +104,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import api, { uploadFile } from '../api/index.js'
 import { resolveMediaUrl } from '../utils/media.js'
 
@@ -133,6 +165,22 @@ const editItem = ref(null)
 const formData = ref({})
 const tempFilePath = ref('')
 
+const isAudioType = computed(() => {
+  const t = config.value.type
+  return t === 'voiceLibrary' || t === 'dubbingLibrary' || t === 'musicLibrary'
+})
+
+const playingItemId = ref(null)
+let audioContext = null
+
+const showPreviewModal = ref(false)
+const previewModalTitle = ref('')
+const previewModalContent = ref('')
+
+const showVideoModal = ref(false)
+const videoModalTitle = ref('')
+const videoModalUrl = ref('')
+
 const filteredList = computed(() => {
   if (!searchKeyword.value) return items.value
   const kw = searchKeyword.value.toLowerCase()
@@ -150,12 +198,24 @@ function getUserId() {
 
 function resolveUrl(path) { return resolveMediaUrl(path) }
 
+function getPortraitImageUrl(item) {
+  const filePath = item.filePath || item.fileUrl || item.imageUrl || ''
+  if (!filePath) return ''
+  if (/\.(mp4|mov|webm|avi)/i.test(filePath)) return ''
+  return resolveUrl(filePath)
+}
+
 function getItemMeta(item) {
   const parts = []
   if (item.fileSize) parts.push(`${(item.fileSize / 1024).toFixed(0)}KB`)
   if (item.duration) parts.push(`${item.duration.toFixed(1)}s`)
   if (item.category) parts.push(item.category)
   if (item.isPublic) parts.push('公开')
+  if (config.value.type === 'portraitLibrary' && (item.filePath || item.fileUrl)) {
+    const fp = item.filePath || item.fileUrl || ''
+    if (/\.(mp4|mov|webm)/i.test(fp)) parts.push('视频')
+    else if (/\.(jpg|jpeg|png|gif|webp)/i.test(fp)) parts.push('图片')
+  }
   return parts.join(' · ') || ''
 }
 
@@ -168,14 +228,85 @@ async function fetchItems() {
   } catch (err) { items.value = [] }
 }
 
-function handlePreview(item) {
-  if (config.value.type === 'voiceLibrary' || config.value.type === 'dubbingLibrary' || config.value.type === 'musicLibrary') {
-    const url = resolveUrl(item.filePath || item.fileUrl)
-    if (url) {
-      const audio = uni.createInnerAudioContext()
-      audio.src = url; audio.play()
-    }
+function toggleAudio(item) {
+  if (playingItemId.value === item.id) {
+    stopAudio()
+    return
   }
+  stopAudio()
+  const url = resolveUrl(item.filePath || item.fileUrl || item.audioUrl)
+  if (!url) return
+  audioContext = uni.createInnerAudioContext()
+  audioContext.src = url
+  audioContext.onPlay(() => { playingItemId.value = item.id })
+  audioContext.onEnded(() => { playingItemId.value = null })
+  audioContext.onError(() => { playingItemId.value = null; uni.showToast({ title: '播放失败', icon: 'none' }) })
+  audioContext.onStop(() => { playingItemId.value = null })
+  audioContext.play()
+}
+
+function stopAudio() {
+  if (audioContext) {
+    audioContext.stop()
+    audioContext.destroy()
+    audioContext = null
+  }
+  playingItemId.value = null
+}
+
+function handlePreview(item) {
+  const t = config.value.type
+  if (t === 'voiceLibrary' || t === 'dubbingLibrary' || t === 'musicLibrary') {
+    toggleAudio(item)
+    return
+  }
+  if (t === 'portraitLibrary') {
+    const filePath = item.filePath || item.fileUrl || item.imageUrl || ''
+    if (/\.(mp4|mov|webm)/i.test(filePath)) {
+      videoModalTitle.value = item.fileName || item.title || item.name || '视频预览'
+      videoModalUrl.value = resolveUrl(filePath)
+      showVideoModal.value = true
+      return
+    }
+    if (/\.(jpg|jpeg|png|gif|webp)/i.test(filePath)) {
+      uni.previewImage({ urls: [resolveUrl(filePath)], current: resolveUrl(filePath) })
+      return
+    }
+    return
+  }
+  if (t === 'workLibrary') {
+    const filePath = item.filePath || item.fileUrl || item.videoPath || ''
+    if (filePath) {
+      videoModalTitle.value = item.title || item.fileName || item.name || '视频预览'
+      videoModalUrl.value = resolveUrl(filePath)
+      showVideoModal.value = true
+    }
+    return
+  }
+  if (t === 'copyLibrary' || t === 'promptLibrary') {
+    previewText(item)
+    return
+  }
+}
+
+function previewText(item) {
+  const title = item.title || item.fileName || item.name || '预览'
+  const content = item.content || item.prompt || item.description || item.text || ''
+  if (!content) {
+    uni.showToast({ title: '暂无内容', icon: 'none' })
+    return
+  }
+  previewModalTitle.value = title
+  previewModalContent.value = content
+  showPreviewModal.value = true
+}
+
+function closePreviewModal() {
+  showPreviewModal.value = false
+}
+
+function closeVideoModal() {
+  showVideoModal.value = false
 }
 
 async function handleFileUpload(field) {
@@ -239,7 +370,9 @@ watch(showAddForm, (val) => {
   }
 })
 
-watch(() => props.libraryKey, () => { fetchItems() }, { immediate: true })
+watch(() => props.libraryKey, () => { stopAudio(); fetchItems() }, { immediate: true })
+
+onUnmounted(() => { stopAudio() })
 </script>
 
 <style scoped>
@@ -255,12 +388,17 @@ watch(() => props.libraryKey, () => { fetchItems() }, { immediate: true })
 .lib-item { display: flex; justify-content: space-between; align-items: center; padding: 20rpx 24rpx; background: rgba(30,30,60,0.7); border: 1rpx solid rgba(102,126,234,0.2); border-radius: 16rpx; margin-bottom: 12rpx; }
 .item-main { display: flex; align-items: center; gap: 16rpx; flex: 1; min-width: 0; }
 .item-preview { width: 72rpx; height: 72rpx; border-radius: 12rpx; background: rgba(102,126,234,0.1); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
+.audio-preview { background: rgba(102,126,234,0.2); cursor: pointer; }
+.video-preview { position: relative; background: rgba(0,0,0,0.3); }
+.play-badge { position: absolute; bottom: 4rpx; right: 4rpx; font-size: 18rpx; color: #fff; background: rgba(102,126,234,0.8); border-radius: 50%; width: 28rpx; height: 28rpx; display: flex; align-items: center; justify-content: center; }
+.text-preview { cursor: pointer; }
 .preview-icon { font-size: 32rpx; }
 .preview-img { width: 72rpx; height: 72rpx; }
 .item-info { flex: 1; min-width: 0; }
 .item-name { font-size: 26rpx; color: rgba(255,255,255,0.9); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .item-meta { font-size: 22rpx; color: rgba(255,255,255,0.4); display: block; margin-top: 4rpx; }
 .item-actions { display: flex; gap: 16rpx; flex-shrink: 0; }
+.action-stop { font-size: 24rpx; color: #e6a23c; padding: 8rpx 16rpx; background: rgba(230,162,60,0.1); border-radius: 8rpx; }
 .action-edit { font-size: 24rpx; color: #667eea; padding: 8rpx 16rpx; }
 .action-delete { font-size: 24rpx; color: #f56c6c; padding: 8rpx 16rpx; }
 .empty-state { padding: 80rpx 0; text-align: center; }
@@ -285,4 +423,15 @@ watch(() => props.libraryKey, () => { fetchItems() }, { immediate: true })
 .modal-btn.cancel { background: rgba(255,255,255,0.08); }
 .modal-btn.confirm { background: linear-gradient(135deg,#667eea,#764ba2); }
 .btn-text { font-size: 28rpx; font-weight: 600; color: #fff; }
+.preview-modal-content { width: 90%; max-width: 650rpx; background: rgba(26,26,46,0.98); border: 1rpx solid rgba(102,126,234,0.3); border-radius: 24rpx; padding: 0; max-height: 80vh; display: flex; flex-direction: column; }
+.preview-modal-header { display: flex; justify-content: space-between; align-items: center; padding: 30rpx 36rpx 20rpx; border-bottom: 1rpx solid rgba(255,255,255,0.08); }
+.preview-modal-title { font-size: 30rpx; color: #fff; font-weight: 600; flex: 1; }
+.preview-modal-close { font-size: 36rpx; color: rgba(255,255,255,0.5); padding: 8rpx 16rpx; }
+.preview-modal-body { padding: 30rpx 36rpx; max-height: 60vh; }
+.preview-modal-text { font-size: 28rpx; color: rgba(255,255,255,0.85); line-height: 1.8; white-space: pre-wrap; word-break: break-all; }
+.video-modal-content { width: 92%; max-width: 700rpx; background: rgba(26,26,46,0.98); border: 1rpx solid rgba(102,126,234,0.3); border-radius: 24rpx; padding: 0; max-height: 85vh; display: flex; flex-direction: column; }
+.video-modal-header { display: flex; justify-content: space-between; align-items: center; padding: 24rpx 30rpx 16rpx; }
+.video-modal-title { font-size: 28rpx; color: #fff; font-weight: 600; flex: 1; }
+.video-modal-close { font-size: 36rpx; color: rgba(255,255,255,0.5); padding: 8rpx 16rpx; }
+.video-modal-player { width: 100%; height: 420rpx; border-radius: 0 0 24rpx 24rpx; }
 </style>
