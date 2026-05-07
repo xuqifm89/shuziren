@@ -60,7 +60,7 @@
         </view>
       </view>
       <view v-if="videoPath" class="player-video-wrap">
-        <video :src="resolveMediaUrl(videoPath)" class="player-video" controls :show-center-play-btn="true" object-fit="contain" />
+        <video :src="resolveMediaUrl(videoPath)" :key="videoPath" class="player-video" controls :show-center-play-btn="true" :autoplay="false" object-fit="contain" />
       </view>
       <view v-else class="player-empty">
         <text class="player-empty-text">生成视频后将在此播放</text>

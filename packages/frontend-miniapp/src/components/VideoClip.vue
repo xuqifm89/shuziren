@@ -193,7 +193,7 @@
         <view class="result-header">
           <text class="result-title">✅ 剪辑完成</text>
         </view>
-        <video :src="resolveMediaUrl(resultVideoPath)" controls class="result-player" />
+        <video :src="resolveMediaUrl(resultVideoPath)" :key="resultVideoPath" controls :autoplay="false" class="result-player" />
         <view class="result-actions">
           <view class="result-action-btn" @tap="handleSaveToLibrary">
             <text class="result-action-text">{{ savedToLibrary ? '✅ 已存入视频库' : '💾 存入视频库' }}</text>
@@ -529,10 +529,10 @@ async function extractFramesFor(target) {
   }
 }
 
-watch(() => props.videoPath, (newPath) => {
+watch(() => props.videoPath, async (newPath) => {
   if (newPath) {
-    extractFramesFor('subtitle')
-    extractFramesFor('cover')
+    await extractFramesFor('subtitle')
+    await extractFramesFor('cover')
   } else {
     subtitleFrames.value = []
     coverFrames.value = []

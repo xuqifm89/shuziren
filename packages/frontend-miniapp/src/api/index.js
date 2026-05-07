@@ -16,6 +16,7 @@ const api = {
           method: options.method || 'GET',
           data: options.data,
           header,
+          timeout: options.timeout || 300000,
           success: resolve,
           fail: reject
         })
