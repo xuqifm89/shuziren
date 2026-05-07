@@ -6,7 +6,7 @@ const { execSync } = require('child_process');
 const musicLibraryRepository = require('../repositories/MusicLibraryRepository');
 const fileService = require('../services/fileService');
 const { getFfmpegPath } = require('../utils/ffmpegHelper');
-const { optionalAuth } = require('../middleware/auth');
+const { authMiddleware, optionalAuth } = require('../middleware/auth');
 
 const ffmpegPath = getFfmpegPath() || 'ffmpeg';
 
