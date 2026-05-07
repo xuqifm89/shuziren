@@ -61,6 +61,7 @@ RUN if [ ! -d "social-auto-upload" ]; then \
     fi; \
     if [ -d "social-auto-upload" ]; then \
       cd social-auto-upload \
+      && sed -i 's/opencv-python>=.*/opencv-python-headless>=4.8.0",/' pyproject.toml 2>/dev/null || true \
       && if command -v uv > /dev/null 2>&1; then \
            uv sync 2>&1 || uv pip install -r requirements.txt 2>&1 || true; \
          fi \
