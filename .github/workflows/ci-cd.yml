@@ -60,6 +60,8 @@ jobs:
             cd /opt/shuziren
 
             echo "1. 拉取最新代码..."
+            cd /opt/shuziren
+            sudo git checkout -- .
             sudo git pull origin main
 
             echo "2. 重新构建镜像..."
