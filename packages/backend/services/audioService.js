@@ -277,8 +277,9 @@ async function generateDubbing(voiceFilePath, text, emotionDescription = '', use
 
   if (taskResult.success && taskResult.outputs && taskResult.outputs.length > 0) {
     for (const output of taskResult.outputs) {
-      if (typeof output === 'string' && isAudioUrl(output)) {
-        audioUrl = output;
+      const url = typeof output === 'string' ? output : (output?.url || output?.cos_url || output?.file_url || '');
+      if (url && isAudioUrl(url)) {
+        audioUrl = url;
         console.log('✅ 从WebSocket找到输出音频 URL:', audioUrl);
         break;
       }
@@ -290,16 +291,20 @@ async function generateDubbing(voiceFilePath, text, emotionDescription = '', use
     if (task) await taskService.updateProgress(task.id, 70, '正在获取生成结果...');
     const taskResultData = await runningHubAI.waitForTaskResult(result.taskId);
     if (taskResultData.success && taskResultData.outputs && taskResultData.outputs.length > 0) {
-      for (const url of taskResultData.outputs) {
-        if (isAudioUrl(url)) {
+      for (const output of taskResultData.outputs) {
+        const url = typeof output === 'string' ? output : (output?.url || output?.cos_url || output?.file_url || '');
+        if (url && isAudioUrl(url)) {
           audioUrl = url;
           console.log('✅ 从REST API找到输出音频 URL:', audioUrl);
           break;
         }
       }
       if (!audioUrl && taskResultData.outputs.length > 0) {
-        audioUrl = taskResultData.outputs[0];
-        console.log('⚠️ 未找到明确音频格式URL，使用第一个结果:', audioUrl);
+        const firstOutput = taskResultData.outputs[0];
+        audioUrl = typeof firstOutput === 'string' ? firstOutput : (firstOutput?.url || firstOutput?.cos_url || firstOutput?.file_url || '');
+        if (audioUrl) {
+          console.log('⚠️ 未找到明确音频格式URL，使用第一个结果:', audioUrl);
+        }
       }
     }
   }
@@ -513,8 +518,9 @@ async function generateImageToVideo(imageFileUrl, audioFileUrl, userId = null, e
 
   if (taskResult.success && taskResult.outputs && taskResult.outputs.length > 0) {
     for (const output of taskResult.outputs) {
-      if (typeof output === 'string' && isVideoUrl(output)) {
-        videoUrl = output;
+      const url = typeof output === 'string' ? output : (output?.url || output?.cos_url || output?.file_url || '');
+      if (url && isVideoUrl(url)) {
+        videoUrl = url;
         console.log('✅ 从WebSocket找到输出视频 URL:', videoUrl);
         break;
       }
@@ -526,16 +532,20 @@ async function generateImageToVideo(imageFileUrl, audioFileUrl, userId = null, e
     if (task) await taskService.updateProgress(task.id, 70, '正在获取生成结果...');
     const taskResultData = await runningHubAI.waitForTaskResult(result.taskId);
     if (taskResultData.success && taskResultData.outputs && taskResultData.outputs.length > 0) {
-      for (const url of taskResultData.outputs) {
-        if (isVideoUrl(url)) {
+      for (const output of taskResultData.outputs) {
+        const url = typeof output === 'string' ? output : (output?.url || output?.cos_url || output?.file_url || '');
+        if (url && isVideoUrl(url)) {
           videoUrl = url;
           console.log('✅ 从REST API找到输出视频 URL:', videoUrl);
           break;
         }
       }
       if (!videoUrl && taskResultData.outputs.length > 0) {
-        videoUrl = taskResultData.outputs[0];
-        console.log('⚠️ 未找到明确视频格式URL，使用第一个结果:', videoUrl);
+        const firstOutput = taskResultData.outputs[0];
+        videoUrl = typeof firstOutput === 'string' ? firstOutput : (firstOutput?.url || firstOutput?.cos_url || firstOutput?.file_url || '');
+        if (videoUrl) {
+          console.log('⚠️ 未找到明确视频格式URL，使用第一个结果:', videoUrl);
+        }
       }
     }
   }
@@ -703,8 +713,9 @@ async function generateVideoToVideo(videoFileUrl, audioFileUrl, userId = null, e
 
   if (taskResult.success && taskResult.outputs && taskResult.outputs.length > 0) {
     for (const output of taskResult.outputs) {
-      if (typeof output === 'string' && isVideoUrl(output)) {
-        outputVideoUrl = output;
+      const url = typeof output === 'string' ? output : (output?.url || output?.cos_url || output?.file_url || '');
+      if (url && isVideoUrl(url)) {
+        outputVideoUrl = url;
         console.log('✅ 从WebSocket找到输出视频 URL:', outputVideoUrl);
         break;
       }
@@ -716,16 +727,20 @@ async function generateVideoToVideo(videoFileUrl, audioFileUrl, userId = null, e
     if (task) await taskService.updateProgress(task.id, 70, '正在获取生成结果...');
     const taskResultData = await runningHubAI.waitForTaskResult(result.taskId);
     if (taskResultData.success && taskResultData.outputs && taskResultData.outputs.length > 0) {
-      for (const url of taskResultData.outputs) {
-        if (isVideoUrl(url)) {
+      for (const output of taskResultData.outputs) {
+        const url = typeof output === 'string' ? output : (output?.url || output?.cos_url || output?.file_url || '');
+        if (url && isVideoUrl(url)) {
           outputVideoUrl = url;
           console.log('✅ 从REST API找到输出视频 URL:', outputVideoUrl);
           break;
         }
       }
       if (!outputVideoUrl && taskResultData.outputs.length > 0) {
-        outputVideoUrl = taskResultData.outputs[0];
-        console.log('⚠️ 未找到明确视频格式URL，使用第一个结果:', outputVideoUrl);
+        const firstOutput = taskResultData.outputs[0];
+        outputVideoUrl = typeof firstOutput === 'string' ? firstOutput : (firstOutput?.url || firstOutput?.cos_url || firstOutput?.file_url || '');
+        if (outputVideoUrl) {
+          console.log('⚠️ 未找到明确视频格式URL，使用第一个结果:', outputVideoUrl);
+        }
       }
     }
   }
