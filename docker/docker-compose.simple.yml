@@ -30,6 +30,7 @@ services:
       - shuziren-assets:/app/assets
       - shuziren-output:/app/output
       - shuziren-data:/app/data
+      - shuziren-cookies:/app/social-auto-upload/cookies
     
     restart: unless-stopped
     
@@ -94,3 +95,6 @@ volumes:
   
   shuziren-data:
     name: shuziren_data
+
+  shuziren-cookies:
+    name: shuziren_cookies
