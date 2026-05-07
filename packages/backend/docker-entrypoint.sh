@@ -36,7 +36,9 @@ install_sau_deps() {
     echo "Installing social-auto-upload dependencies (background)..."
     cd /app/social-auto-upload
     if command -v uv > /dev/null 2>&1; then
-      uv sync 2>/dev/null || uv pip install -r requirements.txt 2>/dev/null || pip3 install -r requirements.txt 2>/dev/null || true
+      uv sync 2>&1 || uv pip install -r requirements.txt 2>&1 || pip3 install -r requirements.txt 2>&1 || true
+    else
+      pip3 install -r requirements.txt 2>&1 || true
     fi
     cd /app
     echo "social-auto-upload setup done"

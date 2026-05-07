@@ -1,10 +1,11 @@
-FROM node:18-alpine AS base
+FROM node:18-slim AS base
 
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     imagemagick \
     python3 \
-    py3-pip \
+    python3-pip \
+    python3-venv \
     make \
     g++ \
     chromium \
@@ -13,10 +14,11 @@ RUN apk add --no-cache \
     git \
     curl \
     ca-certificates \
-    && rm -rf /var/cache/apk/* \
+    wget \
+    && rm -rf /var/lib/apt/lists/* \
     && update-ca-certificates
 
-ENV CHROME_PATH=/usr/bin/chromium-browser
+ENV CHROME_PATH=/usr/bin/chromium
 ENV DISPLAY=:99
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers
 
