@@ -128,6 +128,8 @@ router.get('/accounts/:id/qrcode', async (req, res) => {
   }
 });
 
+const loginProcesses = new Map();
+
 router.post('/accounts/:id/login', async (req, res) => {
   try {
     const account = await publishRepo.findAccountById(req.params.id);
@@ -135,14 +137,63 @@ router.post('/accounts/:id/login', async (req, res) => {
       return res.status(404).json({ error: '账号不存在' });
     }
 
-    const result = await publishService.loginAccount(account.platform, account.accountName);
+    const processKey = `${account.platform}_${account.accountName}`;
+    if (loginProcesses.has(processKey)) {
+      return res.json({ success: true, message: '登录进程已在运行', status: 'running' });
+    }
 
-    await publishRepo.updateAccount(account.id, {
-      cookieValid: true,
-      lastCheckedAt: new Date()
+    const loginPromise = publishService.loginAccount(account.platform, account.accountName);
+    loginProcesses.set(processKey, { promise: loginPromise, status: 'running', output: '' });
+
+    loginPromise.then(async (result) => {
+      await publishRepo.updateAccount(account.id, {
+        cookieValid: true,
+        lastCheckedAt: new Date()
+      });
+      loginProcesses.set(processKey, { status: 'success', output: result.output });
+      setTimeout(() => loginProcesses.delete(processKey), 60000);
+    }).catch((err) => {
+      loginProcesses.set(processKey, { status: 'failed', output: err.message });
+      setTimeout(() => loginProcesses.delete(processKey), 60000);
     });
 
-    res.json({ success: true, message: '登录成功', output: result.output });
+    res.json({ success: true, message: '登录进程已启动', status: 'running' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/accounts/:id/login-status', async (req, res) => {
+  try {
+    const account = await publishRepo.findAccountById(req.params.id);
+    if (!account) {
+      return res.status(404).json({ error: '账号不存在' });
+    }
+
+    const processKey = `${account.platform}_${account.accountName}`;
+    const process = loginProcesses.get(processKey);
+
+    let qrcodeUrl = null;
+    try {
+      const cookiesDir = path.join(__dirname, '..', 'social-auto-upload', 'cookies');
+      const fs = require('fs');
+      if (fs.existsSync(cookiesDir)) {
+        const files = fs.readdirSync(cookiesDir)
+          .filter(f => f.startsWith(`${account.platform}_${account.accountName}_login_qrcode_`))
+          .sort()
+          .reverse();
+        if (files.length > 0) {
+          qrcodeUrl = `/social-auto-upload/cookies/${files[0]}`;
+        }
+      }
+    } catch (e) {}
+
+    res.json({
+      status: process ? process.status : 'idle',
+      output: process ? process.output : '',
+      qrcodeUrl,
+      cookieValid: account.cookieValid
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

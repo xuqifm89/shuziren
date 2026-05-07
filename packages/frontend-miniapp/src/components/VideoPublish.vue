@@ -327,34 +327,41 @@ async function handleLoginAccount(account) {
     showQrcodeDialog.value = true
     qrcodeUrl.value = ''
     currentLoginPlatformName.value = platformNames[account.platform] || account.platform
-    uni.showToast({ title: '正在启动登录，请稍等...', icon: 'none' })
 
-    const loginPromise = api.post(`/publish/accounts/${account.id}/login`, {})
+    await api.post(`/publish/accounts/${account.id}/login`, {})
+    uni.showToast({ title: '登录进程已启动', icon: 'none' })
 
     let pollCount = 0
-    const maxPolls = 60
+    const maxPolls = 90
     loginPollingTimer.value = setInterval(async () => {
       pollCount++
       try {
-        const qrcodeData = await api.get(`/publish/accounts/${account.id}/qrcode`)
-        if (qrcodeData.success && qrcodeData.qrcodeUrl) {
-          const url = qrcodeData.qrcodeUrl
+        const status = await api.get(`/publish/accounts/${account.id}/login-status`)
+        if (status.qrcodeUrl && !qrcodeUrl.value) {
+          const url = status.qrcodeUrl
           qrcodeUrl.value = url.startsWith('http') ? url : `${MEDIA_BASE}${url}`
         }
+        if (status.status === 'success') {
+          if (loginPollingTimer.value) { clearInterval(loginPollingTimer.value); loginPollingTimer.value = null }
+          showQrcodeDialog.value = false
+          uni.showToast({ title: `${account.accountName} 登录成功`, icon: 'success' })
+          await fetchAccounts()
+        } else if (status.status === 'failed') {
+          if (loginPollingTimer.value) { clearInterval(loginPollingTimer.value); loginPollingTimer.value = null }
+          showQrcodeDialog.value = false
+          uni.showToast({ title: status.output || '登录失败', icon: 'none' })
+        }
       } catch (e) {}
-      if (pollCount >= maxPolls) clearInterval(loginPollingTimer.value)
+      if (pollCount >= maxPolls) {
+        if (loginPollingTimer.value) { clearInterval(loginPollingTimer.value); loginPollingTimer.value = null }
+        showQrcodeDialog.value = false
+        uni.showToast({ title: '登录超时，请重试', icon: 'none' })
+      }
     }, 2000)
-
-    await loginPromise
-
-    if (loginPollingTimer.value) { clearInterval(loginPollingTimer.value); loginPollingTimer.value = null }
-    showQrcodeDialog.value = false
-    uni.showToast({ title: `${account.accountName} 登录成功`, icon: 'success' })
-    await fetchAccounts()
   } catch (err) {
     if (loginPollingTimer.value) { clearInterval(loginPollingTimer.value); loginPollingTimer.value = null }
     showQrcodeDialog.value = false
-    uni.showToast({ title: err.message || '登录失败', icon: 'none' })
+    uni.showToast({ title: err.message || '启动登录失败', icon: 'none' })
   }
 }
 
