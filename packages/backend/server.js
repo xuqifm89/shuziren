@@ -336,8 +336,15 @@ app.use('/assets', express.static(path.join(__dirname, 'assets'), {
   maxAge: 3600000,
   etag: true,
   lastModified: true,
-  setHeaders: (res) => {
+  setHeaders: (res, filePath) => {
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    if (filePath.endsWith('.flac')) {
+      res.setHeader('Content-Type', 'audio/flac');
+    } else if (filePath.endsWith('.m4a')) {
+      res.setHeader('Content-Type', 'audio/mp4');
+    } else if (filePath.endsWith('.aac')) {
+      res.setHeader('Content-Type', 'audio/aac');
+    }
   }
 }));
 app.use('/output', express.static(path.join(__dirname, 'output'), {
@@ -346,8 +353,15 @@ app.use('/output', express.static(path.join(__dirname, 'output'), {
   maxAge: 3600000,
   etag: true,
   lastModified: true,
-  setHeaders: (res) => {
+  setHeaders: (res, filePath) => {
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    if (filePath.endsWith('.flac')) {
+      res.setHeader('Content-Type', 'audio/flac');
+    } else if (filePath.endsWith('.m4a')) {
+      res.setHeader('Content-Type', 'audio/mp4');
+    } else if (filePath.endsWith('.aac')) {
+      res.setHeader('Content-Type', 'audio/aac');
+    }
   }
 }));
 app.use('/social-auto-upload/cookies', express.static(

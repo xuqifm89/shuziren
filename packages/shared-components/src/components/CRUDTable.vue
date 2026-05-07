@@ -104,8 +104,10 @@
                   :src="getFullUrl(scope.row[column.prop] || scope.row.audioPath || scope.row.fileUrl)"
                   class="preview-audio"
                   controls
-                  preload="none"
-                />
+                  preload="metadata"
+                >
+                  您的浏览器不支持此音频格式
+                </audio>
               </div>
               <div v-else-if="column.type === 'dimensions'" class="dimensions">
                 <span v-if="scope.row.width && scope.row.height">{{ scope.row.width }}×{{ scope.row.height }}</span>
@@ -543,8 +545,8 @@ const handleFileUpload = async (event, prop) => {
   const file = event.target.files[0]
   if (!file) return
 
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'audio/wav', 'audio/mp3', 'audio/mpeg', 'audio/ogg', 'video/mp4', 'video/mov', 'video/webm']
-  if (!allowedTypes.includes(file.type)) {
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'audio/wav', 'audio/mp3', 'audio/mpeg', 'audio/ogg', 'audio/flac', 'audio/x-flac', 'audio/aac', 'audio/m4a', 'audio/x-m4a', 'video/mp4', 'video/mov', 'video/webm']
+  if (!allowedTypes.includes(file.type) && !file.type.startsWith('audio/')) {
     alert('不支持的文件类型')
     return
   }
