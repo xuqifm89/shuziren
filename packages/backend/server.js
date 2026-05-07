@@ -330,6 +330,31 @@ app.get('/assets/musics/:filename', (req, res) => {
   serveFileWithRange(req, res, filePath, { maxAge: 3600 });
 });
 
+app.get('/assets/*/audio-mp3/*', (req, res) => {
+  const relPath = req.path.replace(/^\/assets\//, '').replace(/^audio-mp3\//, '');
+  const flacPath = path.join(__dirname, 'assets', relPath);
+  const mp3Dir = path.join(__dirname, 'assets', path.dirname(relPath), 'audio-mp3');
+  const mp3Name = path.basename(relPath, path.extname(relPath)) + '.mp3';
+  const mp3Path = path.join(mp3Dir, mp3Name);
+
+  if (require('fs').existsSync(mp3Path)) {
+    return res.sendFile(mp3Path);
+  }
+
+  if (require('fs').existsSync(flacPath) && flacPath.toLowerCase().endsWith('.flac')) {
+    try {
+      require('fs').mkdirSync(mp3Dir, { recursive: true });
+      const ffmpegPath = require('./utils/ffmpegHelper').getFfmpegPath() || 'ffmpeg';
+      require('child_process').execSync(`"${ffmpegPath}" -y -i "${flacPath}" -ab 192k -f mp3 "${mp3Path}"`, { timeout: 30000 });
+      return res.sendFile(mp3Path);
+    } catch (e) {
+      return res.status(500).json({ error: '转码失败' });
+    }
+  }
+
+  res.status(404).json({ error: '文件不存在' });
+});
+
 app.use('/assets', express.static(path.join(__dirname, 'assets'), {
   acceptRanges: true,
   cacheControl: true,

@@ -688,6 +688,12 @@ const isVideoFile = (path) => {
 const getFullUrl = (path) => {
   if (!path) return ''
   if (path.startsWith('http') || path.startsWith('local-media://')) return path
+  if (path.toLowerCase().endsWith('.flac')) {
+    const dir = path.substring(0, path.lastIndexOf('/'))
+    const name = path.substring(path.lastIndexOf('/') + 1)
+    const mp3Name = name.replace(/\.flac$/i, '.mp3')
+    return `${base.value}${dir}/audio-mp3/${mp3Name}`
+  }
   return `${base.value}${path}`
 }
 

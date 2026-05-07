@@ -121,7 +121,23 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: '请上传音频文件' });
     }
     
-    const filePath = path.join(voicesDir, req.file.filename);
+    let filePath = path.join(voicesDir, req.file.filename);
+    
+    if (filePath.toLowerCase().endsWith('.flac')) {
+      const mp3FileName = req.file.filename.replace(/\.flac$/i, '.mp3');
+      const mp3FilePath = path.join(voicesDir, mp3FileName);
+      try {
+        execSync(`"${ffmpegPath}" -y -i "${filePath}" -ab 192k -f mp3 "${mp3FilePath}"`, { timeout: 30000 });
+        const fs = require('fs');
+        fs.unlinkSync(filePath);
+        filePath = mp3FilePath;
+        req.file.filename = mp3FileName;
+        console.log(`✅ Converted FLAC to MP3: ${mp3FileName}`);
+      } catch (convErr) {
+        console.warn(`⚠️ FLAC to MP3 conversion failed: ${convErr.message}`);
+      }
+    }
+    
     const duration = getAudioDuration(filePath);
     
     const fileUrl = `/assets/voices/${req.file.filename}`;
