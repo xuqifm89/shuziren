@@ -23,9 +23,10 @@
         </view>
         <scroll-view scroll-x class="horizontal-scroll" v-if="videoList.length > 0">
           <view :class="['avatar-card', selectedAvatar && selectedAvatar.id === a.id ? 'active' : '']" v-for="a in videoList" :key="a.id" @tap="selectAvatar(a)">
-            <view class="avatar-video-thumb" @tap.stop="previewAvatar(a)">
+            <view class="avatar-video-thumb">
               <video :src="resolveMediaUrl(a.fileUrl)" class="avatar-video-mini" muted :show-center-play-btn="false" :show-play-btn="false" :controls="false" :enable-progress-gesture="false" object-fit="cover" />
-              <view class="avatar-play-overlay">▶</view>
+              <view class="avatar-play-btn" @tap.stop="previewAvatar(a)">▶</view>
+              <view v-if="selectedAvatar && selectedAvatar.id === a.id" class="avatar-check">✓</view>
             </view>
           </view>
         </scroll-view>
@@ -276,7 +277,8 @@ function useVideo() { emit('video-generated', videoPath.value) }
 
 .avatar-video-thumb { width: 100%; height: 100%; position: relative; }
 .avatar-video-mini { width: 100%; height: 100%; }
-.avatar-play-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3); color: #fff; font-size: 32rpx; }
+.avatar-play-btn { position: absolute; right: 6rpx; bottom: 6rpx; width: 40rpx; height: 40rpx; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); color: #fff; font-size: 20rpx; border-radius: 50%; }
+.avatar-check { position: absolute; left: 6rpx; top: 6rpx; width: 36rpx; height: 36rpx; display: flex; align-items: center; justify-content: center; background: #667eea; color: #fff; font-size: 20rpx; border-radius: 50%; }
 
 .voice-card { display: inline-flex; align-items: center; padding: 16rpx 24rpx; margin-right: 12rpx; background: rgba(255,255,255,0.04); border: 1rpx solid rgba(255,255,255,0.08); border-radius: 12rpx; }
 .voice-card.active { background: rgba(102,126,234,0.15); border-color: rgba(102,126,234,0.3); }
