@@ -287,7 +287,15 @@ async function fetchPlatforms() {
   try {
     const data = await api.get('/publish/platforms')
     platforms.value = data.map(p => ({ key: p.key, name: p.name, icon: platformIcons[p.key] || '/static/logo.png' }))
-  } catch (err) { console.error('获取平台列表失败:', err) }
+  } catch (err) {
+    console.error('获取平台列表失败:', err)
+    platforms.value = [
+      { key: 'douyin', name: '抖音', icon: '/static/dy.png' },
+      { key: 'bilibili', name: 'B站', icon: '/static/bz.png' },
+      { key: 'xiaohongshu', name: '小红书', icon: '/static/xhs.png' },
+      { key: 'kuaishou', name: '快手', icon: '/static/ks.png' }
+    ]
+  }
 }
 
 async function fetchAccounts() {

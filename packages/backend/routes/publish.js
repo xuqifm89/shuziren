@@ -5,6 +5,7 @@ const path = require('path');
 const publishRepo = require('../repositories/PublishRepository');
 const publishService = require('../services/publishService');
 const fileService = require('../services/fileService');
+const { authMiddleware } = require('../middleware/auth');
 
 function resolvePath(p) {
   if (!p) return p;
@@ -63,7 +64,7 @@ router.get('/accounts', async (req, res) => {
   }
 });
 
-router.post('/accounts', async (req, res) => {
+router.post('/accounts', authMiddleware, async (req, res) => {
   try {
     const { userId, platform, accountName } = req.body;
 
@@ -130,7 +131,7 @@ router.get('/accounts/:id/qrcode', async (req, res) => {
 
 const loginProcesses = new Map();
 
-router.post('/accounts/:id/login', async (req, res) => {
+router.post('/accounts/:id/login', authMiddleware, async (req, res) => {
   try {
     const account = await publishRepo.findAccountById(req.params.id);
     if (!account) {
@@ -199,7 +200,7 @@ router.get('/accounts/:id/login-status', async (req, res) => {
   }
 });
 
-router.post('/accounts/:id/check', async (req, res) => {
+router.post('/accounts/:id/check', authMiddleware, async (req, res) => {
   try {
     const account = await publishRepo.findAccountById(req.params.id);
     if (!account) {
@@ -219,7 +220,7 @@ router.post('/accounts/:id/check', async (req, res) => {
   }
 });
 
-router.delete('/accounts/:id', async (req, res) => {
+router.delete('/accounts/:id', authMiddleware, async (req, res) => {
   try {
     const account = await publishRepo.deleteAccount(req.params.id);
     if (account) {
@@ -270,7 +271,7 @@ router.get('/tasks/stats/summary', async (req, res) => {
   }
 });
 
-router.post('/upload', async (req, res) => {
+router.post('/upload', authMiddleware, async (req, res) => {
   try {
     const { userId, accountIds, videoPath, thumbnailPath, title, description, tags, publishType, scheduleTime, bilibiliTid } = req.body;
 
@@ -331,7 +332,7 @@ router.post('/upload', async (req, res) => {
   }
 });
 
-router.post('/upload-thumbnail', thumbnailUpload.single('file'), async (req, res) => {
+router.post('/upload-thumbnail', authMiddleware, thumbnailUpload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: '请上传封面图片' });

@@ -93,7 +93,7 @@ app.use('/api/portrait-library', optionalAuth, require('./routes/portraitLibrary
 app.use('/api/copy-library', optionalAuth, require('./routes/copyLibrary'));
 app.use('/api/prompt-library', optionalAuth, require('./routes/promptLibrary'));
 app.use('/api/work-library', optionalAuth, require('./routes/workLibrary'));
-app.use('/api/publish', authMiddleware, requirePermission('publish:create'), require('./routes/publish'));
+app.use('/api/publish', optionalAuth, require('./routes/publish'));
 app.use('/api/tasks', authMiddleware, require('./routes/tasks'));
 app.use('/api/runninghub', authMiddleware, requirePermission('task:create'), require('./routes/runningHub'));
 app.use('/api/cloud-config', authMiddleware, requirePermission('system:config'), require('./routes/cloudConfig'));
