@@ -163,6 +163,22 @@ async function checkDiskSpace() {
       }
     }
 
+    const walPath = dbPath + '-wal';
+    if (fs.existsSync(walPath)) {
+      const walSize = fs.statSync(walPath).size;
+      const walMB = (walSize / 1024 / 1024).toFixed(2);
+      console.log(`  📄 WAL file size: ${walMB} MB`);
+      if (walSize > 5 * 1024 * 1024) {
+        console.log('  ⚠️  WAL file is large, compacting...');
+        try {
+          await sequelize.query('PRAGMA wal_checkpoint(TRUNCATE)', { type: QueryTypes.RAW });
+          console.log('  ✅ WAL checkpoint completed');
+        } catch (e) {
+          console.warn('  ⚠️ WAL checkpoint failed:', e.message);
+        }
+      }
+    }
+
     try {
       const { execSync } = require('child_process');
       const dfOutput = execSync('df -h /app/data 2>/dev/null || df -h / 2>/dev/null', { encoding: 'utf-8' }).trim();

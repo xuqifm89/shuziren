@@ -167,6 +167,144 @@ app.post('/api/maintenance/cleanup', async (req, res) => {
   }
 });
 
+app.get('/api/maintenance/diagnose', async (req, res) => {
+  const result = { database: {}, files: {}, pragmas: {} };
+  try {
+    const fs = require('fs');
+    const dbPath = process.env.DB_PATH || path.join(__dirname, 'data', 'database.sqlite');
+    
+    if (fs.existsSync(dbPath)) {
+      const stats = fs.statSync(dbPath);
+      result.files.database = { path: dbPath, sizeMB: (stats.size / 1024 / 1024).toFixed(2), modified: stats.mtime };
+    }
+    
+    const walPath = dbPath + '-wal';
+    if (fs.existsSync(walPath)) {
+      const walStats = fs.statSync(walPath);
+      result.files.wal = { path: walPath, sizeMB: (walStats.size / 1024 / 1024).toFixed(2) };
+    }
+    
+    const shmPath = dbPath + '-shm';
+    if (fs.existsSync(shmPath)) {
+      const shmStats = fs.statSync(shmPath);
+      result.files.shm = { path: shmPath, sizeMB: (shmStats.size / 1024 / 1024).toFixed(2) };
+    }
+
+    try {
+      const { QueryTypes } = require('sequelize');
+      const tables = await sequelize.query("SELECT name FROM sqlite_master WHERE type='table'", { type: QueryTypes.SELECT });
+      result.database.tables = {};
+      for (const t of tables) {
+        const count = await sequelize.query(`SELECT COUNT(*) as cnt FROM "${t.name}"`, { type: QueryTypes.SELECT }).catch(() => [{ cnt: 'error' }]);
+        result.database.tables[t.name] = count[0]?.cnt;
+      }
+
+      const integrity = await sequelize.query('PRAGMA integrity_check', { type: QueryTypes.SELECT });
+      result.pragmas.integrity_check = integrity;
+
+      const journalMode = await sequelize.query('PRAGMA journal_mode', { type: QueryTypes.SELECT });
+      result.pragmas.journal_mode = journalMode;
+
+      const pageSize = await sequelize.query('PRAGMA page_size', { type: QueryTypes.SELECT });
+      result.pragmas.page_size = pageSize;
+
+      const pageCount = await sequelize.query('PRAGMA page_count', { type: QueryTypes.SELECT });
+      result.pragmas.page_count = pageCount;
+
+      const freePages = await sequelize.query('PRAGMA freelist_count', { type: QueryTypes.SELECT });
+      result.pragmas.freelist_count = freePages;
+    } catch (dbErr) {
+      result.database.error = dbErr.message;
+    }
+
+    try {
+      const { execSync } = require('child_process');
+      const dfOutput = execSync('df -h /app 2>/dev/null || df -h / 2>/dev/null', { encoding: 'utf-8' }).trim();
+      result.disk = dfOutput.split('\n');
+    } catch (e) {}
+
+  } catch (error) {
+    result.error = error.message;
+  }
+  res.json(result);
+});
+
+app.post('/api/maintenance/repair', async (req, res) => {
+  try {
+    const fs = require('fs');
+    const { QueryTypes } = require('sequelize');
+    const dbPath = process.env.DB_PATH || path.join(__dirname, 'data', 'database.sqlite');
+
+    const steps = [];
+
+    try {
+      await sequelize.query('PRAGMA wal_checkpoint(TRUNCATE)', { type: QueryTypes.RAW });
+      steps.push('wal_checkpoint(TRUNCATE) completed');
+    } catch (e) {
+      steps.push('wal_checkpoint failed: ' + e.message);
+    }
+
+    try {
+      await sequelize.query('PRAGMA journal_mode=DELETE', { type: QueryTypes.RAW });
+      steps.push('journal_mode set to DELETE');
+    } catch (e) {
+      steps.push('journal_mode change failed: ' + e.message);
+    }
+
+    const walPath = dbPath + '-wal';
+    const shmPath = dbPath + '-shm';
+    
+    try {
+      await sequelize.query('PRAGMA wal_checkpoint(TRUNCATE)', { type: QueryTypes.RAW });
+    } catch (e) {}
+
+    try {
+      if (fs.existsSync(walPath)) {
+        const walSize = fs.statSync(walPath).size;
+        if (walSize === 0) {
+          fs.unlinkSync(walPath);
+          steps.push('Deleted empty WAL file');
+        } else {
+          steps.push(`WAL file still has ${walSize} bytes, could not delete`);
+        }
+      }
+    } catch (e) {
+      steps.push('WAL delete failed: ' + e.message);
+    }
+
+    try {
+      if (fs.existsSync(shmPath)) {
+        fs.unlinkSync(shmPath);
+        steps.push('Deleted SHM file');
+      }
+    } catch (e) {
+      steps.push('SHM delete failed: ' + e.message);
+    }
+
+    try {
+      const { cleanupOldData } = require('./scripts/dbOptimize');
+      await cleanupOldData();
+      steps.push('cleanupOldData completed');
+    } catch (e) {
+      steps.push('cleanupOldData failed: ' + e.message);
+    }
+
+    try {
+      await sequelize.query('VACUUM', { type: QueryTypes.RAW });
+      steps.push('VACUUM completed');
+    } catch (e) {
+      steps.push('VACUUM failed: ' + e.message);
+    }
+
+    const integrity = await sequelize.query('PRAGMA integrity_check', { type: QueryTypes.SELECT });
+    steps.push('integrity_check: ' + JSON.stringify(integrity));
+
+    res.json({ success: true, steps, integrity });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/assets/portraits/videos/:filename', (req, res) => {
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   const filePath = path.join(__dirname, 'assets', 'portraits', 'videos', req.params.filename);

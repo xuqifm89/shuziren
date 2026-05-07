@@ -13,6 +13,16 @@ if (dbDialect === 'sqlite') {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
+
+  const walPath = dbPath + '-wal';
+  const shmPath = dbPath + '-shm';
+  if (fs.existsSync(walPath)) {
+    const walSize = fs.statSync(walPath).size;
+    if (walSize > 10 * 1024 * 1024) {
+      console.log(`⚠️ WAL file is large (${(walSize / 1024 / 1024).toFixed(2)} MB), will compact on startup`);
+    }
+  }
+
   sequelize = new Sequelize({
     dialect: 'sqlite',
     storage: dbPath,
@@ -38,6 +48,35 @@ if (dbDialect === 'sqlite') {
     query: {
       raw: false
     }
+  });
+
+  sequelize.afterConnect(async (connection) => {
+    try {
+      await new Promise((resolve, reject) => {
+        connection.run('PRAGMA journal_mode=DELETE', (err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+    } catch (e) {
+      console.warn('⚠️ Failed to set journal_mode=DELETE:', e.message);
+    }
+    try {
+      await new Promise((resolve, reject) => {
+        connection.run('PRAGMA synchronous=NORMAL', (err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+    } catch (e) {}
+    try {
+      await new Promise((resolve, reject) => {
+        connection.run('PRAGMA temp_store=MEMORY', (err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+    } catch (e) {}
   });
 } else {
   sequelize = new Sequelize(
