@@ -24,9 +24,6 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers
 
 RUN npx playwright install chromium --with-deps 2>/dev/null || true
 
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh || true
-ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
-
 WORKDIR /app
 
 COPY . .
@@ -41,9 +38,8 @@ RUN if [ ! -d "social-auto-upload" ]; then \
     if [ -d "social-auto-upload" ]; then \
       cd social-auto-upload \
       && sed -i 's/opencv-python>=.*/opencv-python-headless>=4.8.0",/' pyproject.toml 2>/dev/null || true \
-      && if command -v uv > /dev/null 2>&1; then \
-           uv sync 2>&1 || uv pip install -r requirements.txt 2>&1 || pip3 install --break-system-packages opencv-python-headless 2>&1 || true; \
-         fi \
+      && pip3 install --break-system-packages opencv-python-headless 2>&1 || true \
+      && pip3 install --break-system-packages -e . 2>&1 || true \
       && cd /app; \
     fi
 

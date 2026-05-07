@@ -15,6 +15,7 @@ const PLATFORM_NAMES = {
 const SAU_PROJECT_DIR = path.join(__dirname, '..', 'social-auto-upload');
 
 let _sauAvailable = null;
+let _sauCommand = null;
 
 async function isSauAvailable() {
   if (_sauAvailable !== null) return _sauAvailable;
@@ -22,35 +23,50 @@ async function isSauAvailable() {
   return _sauAvailable;
 }
 
-function getUvPath() {
-  if (process.env.UV_PATH && fs.existsSync(process.env.UV_PATH)) return process.env.UV_PATH;
-  const candidates = [
-    '/root/.local/bin/uv',
-    '/root/.cargo/bin/uv',
-    path.join(process.env.HOME || '', '.local', 'bin', 'uv'),
-    path.join(process.env.HOME || '', '.cargo', 'bin', 'uv'),
-    '/usr/local/bin/uv',
-    '/opt/homebrew/bin/uv',
-  ];
-  for (const p of candidates) {
-    if (fs.existsSync(p)) return p;
-  }
+function findSauCommand() {
+  if (_sauCommand) return _sauCommand;
+
+  try {
+    const result = execSync('which sau', { encoding: 'utf-8', stdio: 'pipe' }).trim();
+    if (result && fs.existsSync(result)) {
+      _sauCommand = result;
+      console.log(`✅ Found sau command: ${result}`);
+      return result;
+    }
+  } catch (e) {}
+
   try {
     const result = execSync('which uv', { encoding: 'utf-8', stdio: 'pipe' }).trim();
-    if (result && fs.existsSync(result)) return result;
+    if (result && fs.existsSync(result)) {
+      _sauCommand = result;
+      console.log(`✅ Using uv for sau: ${result}`);
+      return result;
+    }
   } catch (e) {}
-  return 'uv';
-}
 
-const UV_PATH = getUvPath();
+  _sauCommand = 'sau';
+  return _sauCommand;
+}
 
 function getSauSpawnArgs(cliArgs) {
   const env = { ...process.env }
   if (process.env.CHROME_PATH) env.CHROME_PATH = process.env.CHROME_PATH
   if (process.env.PLAYWRIGHT_BROWSERS_PATH) env.PLAYWRIGHT_BROWSERS_PATH = process.env.PLAYWRIGHT_BROWSERS_PATH
+
+  const sauCmd = findSauCommand();
+  const isUv = sauCmd.endsWith('uv') || sauCmd === 'uv';
+
+  if (isUv) {
+    return {
+      command: sauCmd,
+      args: ['run', 'sau', ...cliArgs],
+      options: { cwd: SAU_PROJECT_DIR, timeout: 600000, env }
+    };
+  }
+
   return {
-    command: UV_PATH,
-    args: ['run', 'sau', ...cliArgs],
+    command: sauCmd,
+    args: cliArgs,
     options: { cwd: SAU_PROJECT_DIR, timeout: 600000, env }
   };
 }
@@ -66,10 +82,14 @@ async function checkSauInstalled() {
     child.on('error', (err) => {
       console.warn(`⚠️ sau 命令执行失败: ${err.message}`);
       _sauAvailable = false;
+      _sauCommand = null;
       resolve(false);
     });
     child.on('close', (code) => {
-      if (code !== 0) _sauAvailable = false;
+      if (code !== 0) {
+        _sauAvailable = false;
+        _sauCommand = null;
+      }
       resolve(code === 0);
     });
   });
@@ -89,20 +109,11 @@ async function loginAccount(platform, accountName) {
     throw new Error(`social-auto-upload 目录不存在，请确认已安装: ${SAU_PROJECT_DIR}`);
   }
 
-  if (!fs.existsSync(UV_PATH) && UV_PATH === 'uv') {
-    try {
-      execSync('which uv', { stdio: 'pipe' });
-    } catch (e) {
-      throw new Error(`uv 命令未找到，请安装 uv: https://docs.astral.sh/uv/getting-started/installation/`);
-    }
-  }
-
   const useHeaded = !isHeadlessEnvironment()
   const loginArgs = [platform, 'login', '--account', accountName]
   if (useHeaded) loginArgs.push('--headed')
 
   console.log(`🔐 Starting login for ${platform} account: ${accountName} (${useHeaded ? 'headed' : 'headless'})`);
-  console.log(`📁 SAU dir: ${SAU_PROJECT_DIR}, UV path: ${UV_PATH}`);
 
   return new Promise((resolve, reject) => {
     const { command, args, options } = getSauSpawnArgs(loginArgs);

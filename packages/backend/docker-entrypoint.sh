@@ -35,11 +35,9 @@ install_sau_deps() {
   if [ -d "/app/social-auto-upload" ]; then
     echo "Installing social-auto-upload dependencies (background)..."
     cd /app/social-auto-upload
-    if command -v uv > /dev/null 2>&1; then
-      uv sync 2>&1 || uv pip install -r requirements.txt 2>&1 || pip3 install -r requirements.txt 2>&1 || true
-    else
-      pip3 install -r requirements.txt 2>&1 || true
-    fi
+    sed -i 's/opencv-python>=.*/opencv-python-headless>=4.8.0",/' pyproject.toml 2>/dev/null || true
+    pip3 install --break-system-packages opencv-python-headless 2>&1 || true
+    pip3 install --break-system-packages -e . 2>&1 || true
     cd /app
     echo "social-auto-upload setup done"
   fi
