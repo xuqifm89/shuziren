@@ -253,10 +253,34 @@ async function handleGenerate() {
     const payload = props.useVideoDriver
       ? { videoFileUrl: selectedAvatar.value.fileUrl || selectedAvatar.value.filePath, audioFileUrl: selectedDubbing.value.fileUrl || selectedDubbing.value.filePath, userId: user?.id }
       : { imageFileUrl: selectedAvatar.value.fileUrl || selectedAvatar.value.filePath, audioFileUrl: selectedDubbing.value.fileUrl || selectedDubbing.value.filePath, userId: user?.id }
-    const result = await api.post(endpoint, payload)
-    const url = result.videoUrl || result.data?.videoUrl || result.url || result.fileUrl || ''
-    if (url) { videoPath.value = url; emit('video-generated', url); return { success: true, message: '视频生成成功' } }
-    return { success: false, message: '视频生成中，请稍后在视频库查看' }
+    const submitResult = await api.post(endpoint, payload)
+    const taskId = submitResult.taskId
+    if (!taskId) {
+      const url = submitResult.videoUrl || submitResult.data?.videoUrl || submitResult.url || submitResult.fileUrl || ''
+      if (url) { videoPath.value = url; emit('video-generated', url); return { success: true, message: '视频生成成功' } }
+      return { success: false, message: '提交任务失败' }
+    }
+    const maxPolls = 120
+    for (let i = 0; i < maxPolls; i++) {
+      await new Promise(r => setTimeout(r, 3000))
+      try {
+        const task = await api.get(`/tasks/${taskId}`)
+        if (task.status === 'success') {
+          const url = task.outputUrl || task.result?.videoUrl || task.result?.url || ''
+          if (url) { videoPath.value = url; emit('video-generated', url) }
+          return { success: true, message: url ? '视频生成成功' : '视频生成完成，请稍后在视频库查看' }
+        }
+        if (task.status === 'error' || task.status === 'failed') {
+          return { success: false, message: task.errorMessage || '视频生成失败' }
+        }
+        if (task.status === 'cancelled') {
+          return { success: false, message: '任务已取消' }
+        }
+      } catch (e) {
+        console.warn('轮询任务状态失败:', e.message)
+      }
+    }
+    return { success: false, message: '视频生成超时，请稍后在视频库查看' }
   })
 }
 

@@ -115,12 +115,17 @@ router.post('/generate-image-to-video', async (req, res) => {
       audioFileUrl = path.resolve(__dirname, '..', audioFileUrl.replace(/^\//, ''));
     }
 
-    try {
-      const result = await audioService.generateImageToVideo(imageFileUrl, audioFileUrl, userId, null);
-      res.json({ videoUrl: result.videoUrl, success: true });
-    } catch (genError) {
-      res.status(500).json({ error: genError.message });
-    }
+    const task = await taskService.createTask({
+      taskType: 'video_generation',
+      userId: userId || req.userId,
+      inputParams: { imageFileUrl, audioFileUrl, mode: 'image_to_video' }
+    });
+
+    res.json({ taskId: task.id, status: 'pending', success: true });
+
+    audioService.generateImageToVideo(imageFileUrl, audioFileUrl, userId || req.userId, task.id).catch(err => {
+      console.error('图片生成视频异步失败:', err.message);
+    });
   } catch (error) {
     console.error('图片生成视频失败:', error);
     res.status(500).json({ error: error.message });
@@ -146,12 +151,17 @@ router.post('/generate-video-to-video', async (req, res) => {
       audioFileUrl = path.resolve(__dirname, '..', audioFileUrl.replace(/^\//, ''));
     }
 
-    try {
-      const result = await audioService.generateVideoToVideo(videoFileUrl, audioFileUrl, userId, null);
-      res.json({ videoUrl: result.videoUrl, success: true });
-    } catch (genError) {
-      res.status(500).json({ error: genError.message });
-    }
+    const task = await taskService.createTask({
+      taskType: 'video_generation',
+      userId: userId || req.userId,
+      inputParams: { videoFileUrl, audioFileUrl, mode: 'video_to_video' }
+    });
+
+    res.json({ taskId: task.id, status: 'pending', success: true });
+
+    audioService.generateVideoToVideo(videoFileUrl, audioFileUrl, userId || req.userId, task.id).catch(err => {
+      console.error('视频生成视频异步失败:', err.message);
+    });
   } catch (error) {
     console.error('视频生成视频失败:', error);
     res.status(500).json({ error: error.message });

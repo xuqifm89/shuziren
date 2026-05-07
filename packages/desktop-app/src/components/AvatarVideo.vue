@@ -623,10 +623,32 @@ const generateImageToVideo = async () => {
       }
 
       console.log('🎬 生成结果:', data)
-      if (data.success && data.videoUrl) {
+      if (data.success && data.taskId) {
+        const taskId = data.taskId
+        for (let i = 0; i < 120; i++) {
+          await new Promise(r => setTimeout(r, 3000))
+          try {
+            const pollRes = await authFetch(`http://localhost:3001/api/tasks/${taskId}`)
+            const task = await pollRes.json()
+            if (task.status === 'success') {
+              const url = task.outputUrl || task.result?.videoUrl || task.result?.url || ''
+              if (url) videoPath.value = 'http://localhost:3001' + url
+              return { success: true, message: url ? '视频生成完成' : '视频生成完成，请稍后在视频库查看' }
+            }
+            if (task.status === 'error' || task.status === 'failed') {
+              throw new Error(task.errorMessage || '视频生成失败')
+            }
+            if (task.status === 'cancelled') {
+              throw new Error('任务已取消')
+            }
+          } catch (e) {
+            if (e.message.includes('生成失败') || e.message.includes('已取消')) throw e
+            console.warn('轮询任务状态失败:', e.message)
+          }
+        }
+        throw new Error('视频生成超时，请稍后在视频库查看')
+      } else if (data.success && data.videoUrl) {
         videoPath.value = 'http://localhost:3001' + data.videoUrl
-        console.log('✅ videoPath已设置:', videoPath.value)
-        console.log('✅ [AvatarVideo] 图片转视频成功，已停止所有后台任务')
         return { success: true, message: '视频生成完成' }
       } else {
         throw new Error(getFriendlyErrorMessage(data.error))
@@ -1094,10 +1116,32 @@ const generateVideo = async () => {
         }
 
         console.log('🎬 生成结果:', data)
-        if (data.success && data.videoUrl) {
+        if (data.success && data.taskId) {
+          const taskId = data.taskId
+          for (let i = 0; i < 120; i++) {
+            await new Promise(r => setTimeout(r, 3000))
+            try {
+              const pollRes = await authFetch(`http://localhost:3001/api/tasks/${taskId}`)
+              const task = await pollRes.json()
+              if (task.status === 'success') {
+                const url = task.outputUrl || task.result?.videoUrl || task.result?.url || ''
+                if (url) videoPath.value = 'http://localhost:3001' + url
+                return { success: true, message: url ? '视频生成完成' : '视频生成完成，请稍后在视频库查看' }
+              }
+              if (task.status === 'error' || task.status === 'failed') {
+                throw new Error(task.errorMessage || '视频生成失败')
+              }
+              if (task.status === 'cancelled') {
+                throw new Error('任务已取消')
+              }
+            } catch (e) {
+              if (e.message.includes('生成失败') || e.message.includes('已取消')) throw e
+              console.warn('轮询任务状态失败:', e.message)
+            }
+          }
+          throw new Error('视频生成超时，请稍后在视频库查看')
+        } else if (data.success && data.videoUrl) {
           videoPath.value = 'http://localhost:3001' + data.videoUrl
-          console.log('✅ videoPath已设置:', videoPath.value)
-          console.log('✅ [AvatarVideo] 视频驱动生成成功，已停止所有后台任务')
           return { success: true, message: '视频生成完成' }
         } else {
           throw new Error(getFriendlyErrorMessage(data.error))
