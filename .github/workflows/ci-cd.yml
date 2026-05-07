@@ -36,119 +36,10 @@ jobs:
           cd packages/backend
           npm test --if-present
 
-  build-frontend-pc:
-    name: Build Frontend PC
-    runs-on: ubuntu-latest
-    needs: lint-and-test
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-      - run: npm install --legacy-peer-deps
-      - run: node scripts/postinstall.js
-      - run: cd packages/frontend-pc && npx vite build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: frontend-pc-dist
-          path: packages/frontend-pc/dist
-
-  build-admin-panel:
-    name: Build Admin Panel
-    runs-on: ubuntu-latest
-    needs: lint-and-test
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-      - run: npm install --legacy-peer-deps
-      - run: node scripts/postinstall.js
-      - run: cd packages/admin-panel && npx vite build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: admin-panel-dist
-          path: packages/admin-panel/dist
-
-  build-miniapp-h5:
-    name: Build MiniApp H5
-    runs-on: ubuntu-latest
-    needs: lint-and-test
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-      - run: npm install --legacy-peer-deps
-      - run: node scripts/postinstall.js
-      - run: cd packages/frontend-miniapp && npx uni build -p h5
-      - uses: actions/upload-artifact@v4
-        with:
-          name: miniapp-h5-dist
-          path: packages/frontend-miniapp/dist/build/h5
-
-  build-docker:
-    name: Build & Push Docker Images
-    runs-on: ubuntu-latest
-    needs: [build-frontend-pc, build-admin-panel, build-miniapp-h5]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Build and push Backend
-        uses: docker/build-push-action@v5
-        with:
-          context: ./packages/backend
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/shuziren-backend:latest
-            ${{ secrets.DOCKER_USERNAME }}/shuziren-backend:${{ github.sha }}
-
-      - name: Build and push Frontend PC
-        uses: docker/build-push-action@v5
-        with:
-          context: ./packages/frontend-pc
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/shuziren-frontend-pc:latest
-
-      - name: Build and push Admin Panel
-        uses: docker/build-push-action@v5
-        with:
-          context: ./packages/admin-panel
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/shuziren-admin-panel:latest
-
-      - name: Build and push H5
-        uses: docker/build-push-action@v5
-        with:
-          context: ./packages/frontend-miniapp
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/shuziren-frontend-h5:latest
-
   deploy:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    needs: build-docker
+    needs: lint-and-test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - name: Deploy via SSH
@@ -157,9 +48,38 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script_stop: true
+          command_timeout: 30m
           script: |
+            echo "========================================="
+            echo "  开始部署 - $(date)"
+            echo "========================================="
+
             cd /opt/shuziren
-            docker compose -f docker/docker-compose.yml pull
-            docker compose -f docker/docker-compose.yml up -d --remove-orphans
+
+            echo "1. 拉取最新代码..."
+            git pull origin main
+
+            echo "2. 重新构建镜像..."
+            docker compose -f docker/docker-compose.simple.yml build --no-cache
+
+            echo "3. 重启服务..."
+            docker compose -f docker/docker-compose.simple.yml up -d --remove-orphans
+
+            echo "4. 等待服务就绪..."
+            sleep 10
+
+            echo "5. 健康检查..."
+            HEALTH=$(curl -s http://localhost:3001/api/health | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "failed")
+            if [ "$HEALTH" = "ok" ]; then
+              echo "   ✅ 后端服务正常"
+            else
+              echo "   ⚠️  后端服务可能未就绪 (status: $HEALTH)"
+            fi
+
+            echo "6. 清理旧镜像..."
             docker image prune -f
-            echo "Deploy completed at $(date)"
+
+            echo "========================================="
+            echo "  ✅ 部署完成 - $(date)"
+            echo "========================================="
