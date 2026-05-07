@@ -30,7 +30,7 @@ COPY . .
 
 RUN npm install --ignore-scripts
 
-RUN npm rebuild sqlite3
+RUN npm rebuild sqlite3 --build-from-source
 
 RUN if [ ! -d "social-auto-upload" ]; then \
       git clone https://github.com/dreammis/social-auto-upload.git social-auto-upload 2>&1 || true; \
