@@ -58,13 +58,13 @@ jobs:
             cd /opt/shuziren
 
             echo "1. 拉取最新代码..."
-            git pull origin main
+            sudo git pull origin main
 
             echo "2. 重新构建镜像..."
-            docker compose -f docker/docker-compose.simple.yml build --no-cache
+            sudo docker compose -f docker/docker-compose.simple.yml build --no-cache
 
             echo "3. 重启服务..."
-            docker compose -f docker/docker-compose.simple.yml up -d --remove-orphans
+            sudo docker compose -f docker/docker-compose.simple.yml up -d --remove-orphans
 
             echo "4. 等待服务就绪..."
             sleep 10
@@ -78,7 +78,7 @@ jobs:
             fi
 
             echo "6. 清理旧镜像..."
-            docker image prune -f
+            sudo docker image prune -f
 
             echo "========================================="
             echo "  ✅ 部署完成 - $(date)"
