@@ -24,6 +24,7 @@ const CloudConfig = require('./models/CloudConfig');
 const ApiLog = require('./models/ApiLog');
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
 const wsManager = require('./websocket/WebSocketManager');
 const errorHandler = require('./middleware/errorHandler');
