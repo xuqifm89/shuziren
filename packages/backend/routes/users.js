@@ -125,19 +125,31 @@ router.post('/login', authLimiter, loginRules, async (req, res) => {
       return res.status(400).json({ error: '用户名和密码不能为空' });
     }
 
-    let user = await userRepository.findByUsername(username);
-    if (!user) {
-      user = await userRepository.findByEmail(username);
+    let user;
+    try {
+      user = await userRepository.findByUsername(username);
+      if (!user) {
+        user = await userRepository.findByEmail(username);
+      }
+    } catch (dbErr) {
+      console.error('Database query error during login:', dbErr.message);
+      if (dbErr.message?.includes('SQLITE_FULL') || dbErr.message?.includes('disk is full')) {
+        const { cleanupOldData } = require('../scripts/dbOptimize');
+        await cleanupOldData().catch(() => {});
+        user = await userRepository.findByUsername(username).catch(() => null);
+        if (!user) user = await userRepository.findByEmail(username).catch(() => null);
+      }
+      if (!user) {
+        return res.status(500).json({ error: '数据库暂时不可用，请稍后重试' });
+      }
     }
     
     if (!user) {
-      auditLog({ username, action: AUDIT_ACTIONS.LOGIN_FAILED, resource: 'user', details: { reason: 'user_not_found' }, ip: req.ip, userAgent: req.headers['user-agent'], statusCode: 401, success: false }).catch(() => {});
       return res.status(401).json({ error: '用户名或密码错误' });
     }
 
     const isValidPassword = await userRepository.verifyPassword(password, user.password);
     if (!isValidPassword) {
-      auditLog({ userId: user.id, username, action: AUDIT_ACTIONS.LOGIN_FAILED, resource: 'user', details: { reason: 'wrong_password' }, ip: req.ip, userAgent: req.headers['user-agent'], statusCode: 401, success: false }).catch(() => {});
       return res.status(401).json({ error: '用户名或密码错误' });
     }
 
@@ -145,14 +157,12 @@ router.post('/login', authLimiter, loginRules, async (req, res) => {
       return res.status(403).json({ error: '账号已被禁用' });
     }
 
-    await userRepository.updateLastLogin(user.id).catch(err => console.warn('更新登录时间失败:', err.message));
+    userRepository.updateLastLogin(user.id).catch(err => console.warn('更新登录时间失败:', err.message));
 
     const userResponse = user.toJSON();
     delete userResponse.password;
 
     const token = generateToken(userResponse);
-
-    auditLog({ userId: user.id, username, action: AUDIT_ACTIONS.LOGIN, resource: 'user', ip: req.ip, userAgent: req.headers['user-agent'], statusCode: 200, success: true }).catch(() => {});
 
     res.json({
       ...userResponse,
@@ -161,7 +171,9 @@ router.post('/login', authLimiter, loginRules, async (req, res) => {
     });
   } catch (error) {
     console.error('Login error:', error.message);
-    console.error('Stack:', error.stack);
+    if (error.message?.includes('SQLITE_FULL') || error.message?.includes('disk is full')) {
+      return res.status(507).json({ error: '服务器存储空间不足，请联系管理员清理' });
+    }
     res.status(500).json({ error: '登录服务暂时不可用，请稍后重试' });
   }
 });

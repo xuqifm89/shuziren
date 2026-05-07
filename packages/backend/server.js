@@ -227,11 +227,33 @@ async function initDatabase() {
     await sequelize.authenticate();
     console.log('Database connection has been established successfully.');
 
-    const syncOptions = sequelize.getDialect() === 'sqlite' 
-      ? { alter: true } 
-      : { alter: true };
-    await sequelize.sync(syncOptions);
-    console.log('Database tables synchronized.');
+    try {
+      const { cleanupOldData, checkDiskSpace } = require('./scripts/dbOptimize');
+      await checkDiskSpace();
+      await cleanupOldData();
+    } catch (cleanErr) {
+      console.warn('⚠️ Pre-sync cleanup failed:', cleanErr.message);
+    }
+
+    try {
+      const syncOptions = sequelize.getDialect() === 'sqlite' 
+        ? { alter: true } 
+        : { alter: true };
+      await sequelize.sync(syncOptions);
+      console.log('Database tables synchronized.');
+    } catch (syncErr) {
+      if (syncErr.message?.includes('SQLITE_FULL') || syncErr.message?.includes('disk is full')) {
+        console.error('⚠️ Database sync failed: disk full. Trying without alter...');
+        try {
+          await sequelize.sync();
+          console.log('Database tables synchronized (without alter).');
+        } catch (syncErr2) {
+          console.error('⚠️ Database sync also failed without alter:', syncErr2.message);
+        }
+      } else {
+        throw syncErr;
+      }
+    }
 
     try {
       const { runOptimizations } = require('./scripts/dbOptimize');
