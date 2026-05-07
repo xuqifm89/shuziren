@@ -1,4 +1,4 @@
-FROM node:18-slim AS base
+FROM node:18-bookworm AS base
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
@@ -12,8 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     dbus \
     git \
     curl \
-    ca-certificates \
     wget \
+    ca-certificates \
     libgl1 \
     libglib2.0-0 \
     libsm6 \
@@ -40,28 +40,31 @@ ENV CHROME_PATH=/usr/bin/chromium
 ENV DISPLAY=:99
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers
 
-RUN npx playwright install --with-deps chromium 2>/dev/null || true
+RUN npx playwright install --with-deps chromium 2>/dev/null; \
+    if [ ! -f /usr/bin/chromium ]; then \
+      ln -sf /opt/playwright-browsers/chromium-*/chrome-linux/chromium /usr/bin/chromium 2>/dev/null || true; \
+    fi
 
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh || true
 ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
 
 WORKDIR /app
 
-# 直接复制当前目录的所有内容（后端代码）
 COPY . .
 
-# 安装依赖
 RUN npm install --ignore-scripts
 
-# 重新编译 sqlite3
 RUN npm rebuild sqlite3
 
-# 获取 social-auto-upload
 RUN if [ ! -d "social-auto-upload" ]; then \
       git clone https://github.com/dreammis/social-auto-upload.git social-auto-upload 2>&1 || true; \
     fi; \
     if [ -d "social-auto-upload" ]; then \
-      cd social-auto-upload && if command -v uv &> /dev/null; then uv sync 2>&1 || uv pip install -r requirements.txt 2>&1 || true; fi && cd /app; \
+      cd social-auto-upload \
+      && if command -v uv > /dev/null 2>&1; then \
+           uv sync 2>&1 || uv pip install -r requirements.txt 2>&1 || true; \
+         fi \
+      && cd /app; \
     fi
 
 RUN mkdir -p \
@@ -81,7 +84,6 @@ RUN mkdir -p \
   output/frames \
   data
 
-# 确保入口脚本有执行权限
 RUN chmod +x /app/docker-entrypoint.sh
 
 EXPOSE 3001
