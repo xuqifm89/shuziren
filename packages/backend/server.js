@@ -110,9 +110,12 @@ app.get('/api/health', async (req, res) => {
   const cpuUsage = process.cpuUsage();
 
   let dbStatus = 'disconnected';
+  let userCount = 0;
   try {
     await sequelize.authenticate();
     dbStatus = 'connected';
+    const User = require('./models/User');
+    userCount = await User.count();
   } catch (e) {
     dbStatus = 'error: ' + e.message;
   }
@@ -136,7 +139,8 @@ app.get('/api/health', async (req, res) => {
     },
     database: {
       status: dbStatus,
-      dialect: sequelize.getDialect()
+      dialect: sequelize.getDialect(),
+      userCount
     },
     ws: {
       online: wsManager.getOnlineCount()

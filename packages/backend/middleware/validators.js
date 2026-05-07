@@ -16,11 +16,9 @@ const loginRules = [
   require('express-validator').body('username')
     .trim()
     .notEmpty().withMessage('用户名不能为空')
-    .isLength({ min: 2, max: 50 }).withMessage('用户名长度2-50字符')
-    .escape(),
+    .isLength({ min: 1, max: 100 }).withMessage('用户名长度不正确'),
   require('express-validator').body('password')
-    .notEmpty().withMessage('密码不能为空')
-    .isLength({ min: 4, max: 100 }).withMessage('密码长度4-100字符'),
+    .notEmpty().withMessage('密码不能为空'),
   validate
 ];
 

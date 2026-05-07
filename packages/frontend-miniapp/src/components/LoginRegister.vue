@@ -55,12 +55,12 @@ async function handleLogin() {
   isLoading.value = true
   try {
     const result = await api.post('/users/login', loginForm.value)
-    const token = result.token || result.data?.token || ''
-    const user = result.user || result.data?.user || {}
+    const token = result.token || ''
     if (token) {
       uni.setStorageSync('token', token)
-      uni.setStorageSync('userInfo', JSON.stringify(user))
-      emit('login-success', { token, user })
+      const userInfo = { id: result.id, username: result.username, role: result.role, nickname: result.nickname, avatar: result.avatar, lightParticles: result.lightParticles }
+      uni.setStorageSync('userInfo', JSON.stringify(userInfo))
+      emit('login-success', { token, user: userInfo })
       uni.showToast({ title: '登录成功', icon: 'success' })
     } else {
       uni.showToast({ title: '登录失败', icon: 'none' })
@@ -75,6 +75,9 @@ async function handleRegister() {
   }
   if (registerForm.value.password !== registerForm.value.confirmPassword) {
     uni.showToast({ title: '两次密码不一致', icon: 'none' }); return
+  }
+  if (registerForm.value.password.length < 6) {
+    uni.showToast({ title: '密码至少6位', icon: 'none' }); return
   }
   isLoading.value = true
   try {

@@ -67,6 +67,10 @@ router.post('/register', authLimiter, registerRules, async (req, res) => {
   try {
     const { username, password, phone, nickname, email } = req.body;
 
+    if (!username || !password) {
+      return res.status(400).json({ error: '用户名和密码不能为空' });
+    }
+
     const existingUser = await userRepository.findByUsername(username);
     if (existingUser) {
       return res.status(400).json({ error: '用户名已存在' });
@@ -107,8 +111,9 @@ router.post('/register', authLimiter, registerRules, async (req, res) => {
       permissions: getRolePermissions('user')
     });
   } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Registration error:', error.message);
+    console.error('Stack:', error.stack);
+    res.status(500).json({ error: '注册服务暂时不可用，请稍后重试' });
   }
 });
 
@@ -116,30 +121,38 @@ router.post('/login', authLimiter, loginRules, async (req, res) => {
   try {
     const { username, password } = req.body;
 
+    if (!username || !password) {
+      return res.status(400).json({ error: '用户名和密码不能为空' });
+    }
+
     let user = await userRepository.findByUsername(username);
     if (!user) {
       user = await userRepository.findByEmail(username);
     }
     
     if (!user) {
-      auditLog({ username, action: AUDIT_ACTIONS.LOGIN_FAILED, resource: 'user', details: { reason: 'user_not_found' }, ip: req.ip, userAgent: req.headers['user-agent'], statusCode: 401, success: false });
+      auditLog({ username, action: AUDIT_ACTIONS.LOGIN_FAILED, resource: 'user', details: { reason: 'user_not_found' }, ip: req.ip, userAgent: req.headers['user-agent'], statusCode: 401, success: false }).catch(() => {});
       return res.status(401).json({ error: '用户名或密码错误' });
     }
 
     const isValidPassword = await userRepository.verifyPassword(password, user.password);
     if (!isValidPassword) {
-      auditLog({ userId: user.id, username, action: AUDIT_ACTIONS.LOGIN_FAILED, resource: 'user', details: { reason: 'wrong_password' }, ip: req.ip, userAgent: req.headers['user-agent'], statusCode: 401, success: false });
+      auditLog({ userId: user.id, username, action: AUDIT_ACTIONS.LOGIN_FAILED, resource: 'user', details: { reason: 'wrong_password' }, ip: req.ip, userAgent: req.headers['user-agent'], statusCode: 401, success: false }).catch(() => {});
       return res.status(401).json({ error: '用户名或密码错误' });
     }
 
-    await userRepository.updateLastLogin(user.id);
+    if (user.status === 'disabled') {
+      return res.status(403).json({ error: '账号已被禁用' });
+    }
+
+    await userRepository.updateLastLogin(user.id).catch(err => console.warn('更新登录时间失败:', err.message));
 
     const userResponse = user.toJSON();
     delete userResponse.password;
 
     const token = generateToken(userResponse);
 
-    auditLog({ userId: user.id, username, action: AUDIT_ACTIONS.LOGIN, resource: 'user', ip: req.ip, userAgent: req.headers['user-agent'], statusCode: 200, success: true });
+    auditLog({ userId: user.id, username, action: AUDIT_ACTIONS.LOGIN, resource: 'user', ip: req.ip, userAgent: req.headers['user-agent'], statusCode: 200, success: true }).catch(() => {});
 
     res.json({
       ...userResponse,
@@ -147,8 +160,9 @@ router.post('/login', authLimiter, loginRules, async (req, res) => {
       permissions: getRolePermissions(userResponse.role || 'user')
     });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Login error:', error.message);
+    console.error('Stack:', error.stack);
+    res.status(500).json({ error: '登录服务暂时不可用，请稍后重试' });
   }
 });
 
