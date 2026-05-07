@@ -8,25 +8,39 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-venv \
     make \
     g++ \
-    chromium \
     xvfb \
     dbus \
     git \
     curl \
     ca-certificates \
+    wget \
     libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender1 \
+    libnss3 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libgbm1 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libasound2 \
+    libxshmfence1 \
     && rm -rf /var/lib/apt/lists/* \
     && update-ca-certificates
 
-ENV CHROME_PATH=/usr/bin/chromium-browser
+ENV CHROME_PATH=/usr/bin/chromium
 ENV DISPLAY=:99
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers
 
-RUN npx playwright install chromium --with-deps 2>/dev/null || true
+RUN npx playwright install --with-deps chromium 2>/dev/null || true
 
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh || true
 ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
