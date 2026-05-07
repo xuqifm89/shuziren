@@ -15,8 +15,21 @@ const AUDIT_ACTIONS = {
   STATUS_CHANGE: 'status_change'
 };
 
+const SKIP_RESOURCES = ['health', 'ws', 'models', 'dashboard'];
+const SKIP_ACTIONS = [];
+
+let lastLogTime = 0;
+const LOG_THROTTLE_MS = 1000;
+
 async function auditLog({ userId, username, action, resource, resourceId, details, ip, userAgent, statusCode, success }) {
   try {
+    if (SKIP_RESOURCES.includes(resource)) return;
+    if (SKIP_ACTIONS.includes(action)) return;
+
+    const now = Date.now();
+    if (!success && now - lastLogTime < LOG_THROTTLE_MS) return;
+    lastLogTime = now;
+
     await AuditLog.create({
       userId: userId || null,
       username: username || null,
@@ -30,7 +43,14 @@ async function auditLog({ userId, username, action, resource, resourceId, detail
       success: success !== false
     });
   } catch (error) {
-    console.error('Audit log write failed:', error.message);
+    if (error.message?.includes('SQLITE_FULL') || error.message?.includes('disk is full')) {
+      console.error('⚠️ Cannot write audit log: database is full!');
+      try {
+        await AuditLog.destroy({ where: {}, limit: 100, order: [['createdAt', 'ASC']] });
+      } catch (e) {}
+    } else {
+      console.error('Audit log write failed:', error.message);
+    }
   }
 }
 

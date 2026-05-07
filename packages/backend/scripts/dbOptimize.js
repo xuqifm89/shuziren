@@ -1,5 +1,7 @@
 const sequelize = require('../config/database');
 const { QueryTypes } = require('sequelize');
+const fs = require('fs');
+const path = require('path');
 
 async function createIndexes() {
   const dialect = sequelize.getDialect();
@@ -73,6 +75,81 @@ async function analyzeTables() {
   }
 }
 
+async function cleanupOldData() {
+  const dialect = sequelize.getDialect();
+  console.log('  🧹 Cleaning up old data...');
+
+  try {
+    if (dialect === 'sqlite') {
+      const auditCount = await sequelize.query(
+        "SELECT COUNT(*) as cnt FROM AuditLogs",
+        { type: QueryTypes.SELECT }
+      );
+      const count = auditCount[0]?.cnt || 0;
+      console.log(`  📊 AuditLogs count: ${count}`);
+
+      if (count > 1000) {
+        await sequelize.query(
+          "DELETE FROM AuditLogs WHERE id NOT IN (SELECT id FROM AuditLogs ORDER BY createdAt DESC LIMIT 500)",
+          { type: QueryTypes.RAW }
+        );
+        console.log(`  ✅ Cleaned ${count - 500} old audit logs (kept 500 most recent)`);
+      }
+
+      const apiLogCount = await sequelize.query(
+        "SELECT COUNT(*) as cnt FROM api_logs",
+        { type: QueryTypes.SELECT }
+      ).catch(() => [{ cnt: 0 }]);
+      const apiCount = apiLogCount[0]?.cnt || 0;
+      console.log(`  📊 api_logs count: ${apiCount}`);
+
+      if (apiCount > 1000) {
+        await sequelize.query(
+          "DELETE FROM api_logs WHERE id NOT IN (SELECT id FROM api_logs ORDER BY createdAt DESC LIMIT 500)",
+          { type: QueryTypes.RAW }
+        ).catch(() => {});
+        console.log(`  ✅ Cleaned ${apiCount - 500} old API logs (kept 500 most recent)`);
+      }
+
+      const taskCount = await sequelize.query(
+        "SELECT COUNT(*) as cnt FROM tasks WHERE status IN ('completed', 'failed', 'cancelled')",
+        { type: QueryTypes.SELECT }
+      ).catch(() => [{ cnt: 0 }]);
+      const oldTaskCount = taskCount[0]?.cnt || 0;
+      if (oldTaskCount > 100) {
+        await sequelize.query(
+          "DELETE FROM tasks WHERE status IN ('completed', 'failed', 'cancelled') AND id NOT IN (SELECT id FROM tasks WHERE status IN ('completed', 'failed', 'cancelled') ORDER BY createdAt DESC LIMIT 50)",
+          { type: QueryTypes.RAW }
+        ).catch(() => {});
+        console.log(`  ✅ Cleaned old completed/failed tasks (kept 50 most recent)`);
+      }
+
+      await sequelize.query('VACUUM', { type: QueryTypes.RAW });
+      console.log('  ✅ SQLite VACUUM completed - database compacted');
+    }
+  } catch (err) {
+    console.log('  ⚠️  Cleanup failed:', err.message);
+  }
+}
+
+async function checkDiskSpace() {
+  try {
+    const dbPath = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'database.sqlite');
+    if (fs.existsSync(dbPath)) {
+      const stats = fs.statSync(dbPath);
+      const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
+      console.log(`  💾 Database size: ${sizeMB} MB`);
+
+      if (parseFloat(sizeMB) > 100) {
+        console.log('  ⚠️  Database is large, running cleanup...');
+        await cleanupOldData();
+      }
+    }
+  } catch (err) {
+    console.log('  ⚠️  Disk check failed:', err.message);
+  }
+}
+
 async function runOptimizations() {
   console.log('');
   console.log('🔧 Database Optimization');
@@ -82,6 +159,8 @@ async function runOptimizations() {
     await sequelize.authenticate();
     console.log('  ✅ Database connected');
 
+    await checkDiskSpace();
+    await cleanupOldData();
     await createIndexes();
     await analyzeTables();
 
@@ -96,4 +175,4 @@ if (require.main === module) {
   runOptimizations().then(() => process.exit(0));
 }
 
-module.exports = { createIndexes, analyzeTables, runOptimizations };
+module.exports = { createIndexes, analyzeTables, cleanupOldData, checkDiskSpace, runOptimizations };

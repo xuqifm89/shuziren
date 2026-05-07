@@ -111,11 +111,18 @@ app.get('/api/health', async (req, res) => {
 
   let dbStatus = 'disconnected';
   let userCount = 0;
+  let dbSizeMB = 0;
   try {
     await sequelize.authenticate();
     dbStatus = 'connected';
     const User = require('./models/User');
     userCount = await User.count();
+    const fs = require('fs');
+    const path = require('path');
+    const dbPath = process.env.DB_PATH || path.join(__dirname, 'data', 'database.sqlite');
+    if (fs.existsSync(dbPath)) {
+      dbSizeMB = (fs.statSync(dbPath).size / 1024 / 1024).toFixed(2);
+    }
   } catch (e) {
     dbStatus = 'error: ' + e.message;
   }
@@ -140,12 +147,24 @@ app.get('/api/health', async (req, res) => {
     database: {
       status: dbStatus,
       dialect: sequelize.getDialect(),
-      userCount
+      userCount,
+      sizeMB: dbSizeMB
     },
     ws: {
       online: wsManager.getOnlineCount()
     }
   });
+});
+
+app.post('/api/maintenance/cleanup', async (req, res) => {
+  try {
+    const { cleanupOldData, checkDiskSpace } = require('./scripts/dbOptimize');
+    await checkDiskSpace();
+    await cleanupOldData();
+    res.json({ success: true, message: 'Database cleanup completed' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.get('/assets/portraits/videos/:filename', (req, res) => {
