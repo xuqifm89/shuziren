@@ -4,6 +4,7 @@ import { getAuthHeaders } from '../utils/api.js'
 
 const TASK_STORAGE_KEY = 'ai_task_state'
 const TASK_TIMEOUT = 30 * 60 * 1000
+const POLL_INTERVAL = 5000
 
 const state = reactive({
   isActive: false,
@@ -27,6 +28,66 @@ let pendingTaskFunction = null
 const visibleState = ref(false)
 let wsInitialized = false
 let wsUnsubscribe = null
+let pollTimer = null
+
+function startPolling() {
+  stopPolling()
+  if (!state.serverTaskId) return
+
+  pollTimer = setInterval(async () => {
+    if (!state.serverTaskId || state.status === 'success' || state.status === 'error') {
+      stopPolling()
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/tasks/${state.serverTaskId}`, {
+        headers: getAuthHeaders()
+      })
+
+      if (!response.ok) {
+        return
+      }
+
+      const task = await response.json()
+
+      if (task.status === 'success') {
+        state.progress = 100
+        state.progressMessage = '任务完成'
+        if (task.outputUrl) {
+          state.outputUrl = task.outputUrl
+        }
+        completeTask('任务完成')
+        stopPolling()
+      } else if (task.status === 'error') {
+        failTask(task.errorMessage || '任务执行失败')
+        stopPolling()
+      } else if (task.status === 'processing' && task.progress) {
+        state.progress = task.progress
+        if (task.progressMessage) {
+          state.progressMessage = task.progressMessage
+        }
+        notifyListeners()
+      } else if (task.status === 'timeout') {
+        state.progressMessage = 'AI处理时间较长，任务转入后台执行'
+        state.errorMessage = 'AI处理时间较长，任务转入后台执行'
+        state.status = 'timeout'
+        saveState()
+        notifyListeners()
+        stopPolling()
+      }
+    } catch (err) {
+      console.error('[TaskManager] 轮询失败:', err)
+    }
+  }, POLL_INTERVAL)
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
 
 function initWebSocket() {
   if (wsInitialized) return
@@ -64,6 +125,7 @@ function initWebSocket() {
           state.outputUrl = data.outputUrl
         }
         completeTask(data.message || `${state.taskName}已完成`)
+        stopPolling()
       }
       if (data.status === 'timeout') {
         state.progressMessage = data.message || 'AI处理时间较长，任务转入后台执行'
@@ -74,6 +136,7 @@ function initWebSocket() {
       }
       if (data.status === 'error') {
         failTask(data.errorMessage || data.message || '任务执行失败')
+        stopPolling()
       }
       if (data.status === 'cancelled') {
         clearState()
@@ -105,7 +168,6 @@ function saveState() {
       listeners: []
     }
     localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(stateToSave))
-    console.log('💾 任务状态已保存到localStorage')
   } catch (err) {
     console.error('❌ 保存任务状态失败:', err)
   }
@@ -146,6 +208,8 @@ function clearState() {
     ws.unsubscribeTask(state.serverTaskId)
   }
 
+  stopPolling()
+
   state.isActive = false
   visibleState.value = false
   state.taskType = ''
@@ -164,7 +228,6 @@ function clearState() {
 
   try {
     localStorage.removeItem(TASK_STORAGE_KEY)
-    console.log('🗑️ 任务状态已清除')
   } catch (err) {
     console.error('❌ 清除任务状态失败:', err)
   }
@@ -242,6 +305,8 @@ export function useTaskManager() {
     }
 
     ws.subscribeTask(serverTaskId)
+
+    startPolling()
 
     saveState()
     notifyListeners()
@@ -332,6 +397,7 @@ export function useTaskManager() {
     state.successMessage = message || `${state.taskName}已完成`
     state.isCancelling = false
 
+    stopPolling()
     saveState()
 
     setTimeout(() => {
@@ -348,6 +414,7 @@ export function useTaskManager() {
     state.errorMessage = errorMsg || `${state.taskName}失败`
     state.isCancelling = false
 
+    stopPolling()
     saveState()
     notifyListeners()
   }
