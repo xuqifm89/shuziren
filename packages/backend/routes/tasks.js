@@ -7,6 +7,9 @@ router.use(authMiddleware);
 
 router.get('/', async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
     const { status, type, page = 1, pageSize = 20 } = req.query;
     let tasks;
     if (status) {
@@ -29,6 +32,9 @@ router.get('/', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
     const task = await taskService.getTask(req.params.id);
     if (!task) {
       return res.status(404).json({ error: '任务不存在' });
