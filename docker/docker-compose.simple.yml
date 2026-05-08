@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   backend:
     build:
@@ -9,29 +11,31 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=3001
+      
       - DB_DIALECT=sqlite
       - DB_PATH=/app/data/database.sqlite
+      
       - STORAGE_MODE=local
       - LOCAL_MEDIA_PATH=/app/assets
+      
       - JWT_SECRET=${JWT_SECRET:-shuziren_jwt_secret_2024}
       - ADMIN_JWT_SECRET=${ADMIN_JWT_SECRET:-shuziren_admin_jwt_secret_2024}
-      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://43.155.188.118,http://43.155.188.118:3081,http://43.155.188.118:3082}
+      
       - LOG_LEVEL=info
-      - CONFIG_ENCRYPTION_KEY=${CONFIG_ENCRYPTION_KEY:-shuziren_config_encryption_key_2024}
+      - CONFIG_ENCRYPTION_KEY=shuziren_config_encryption_key_2024
+    
     volumes:
       - shuziren-assets:/app/assets
       - shuziren-output:/app/output
       - shuziren-data:/app/data
-      - shuziren-cookies:/app/social-auto-upload/cookies
+    
     restart: unless-stopped
+    
     networks:
       - shuziren-network
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+    
     logging:
       driver: "json-file"
       options:
@@ -84,9 +88,9 @@ networks:
 volumes:
   shuziren-assets:
     name: shuziren_assets
+  
   shuziren-output:
     name: shuziren_output
+  
   shuziren-data:
     name: shuziren_data
-  shuziren-cookies:
-    name: shuziren_cookies
