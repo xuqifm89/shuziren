@@ -613,6 +613,12 @@ const generateAudio = async () => {
       const data = await response.json()
 
       if (data.success && data.taskId) {
+        savePendingTask({
+          text: props.inputText,
+          voiceFileUrl: selectedVoice.value.fileUrl,
+          taskId: data.taskId
+        })
+        startPolling()
         return { success: true, taskId: data.taskId }
       } else if (data.success && data.audioUrl) {
         const fullAudioUrl = '' + data.audioUrl

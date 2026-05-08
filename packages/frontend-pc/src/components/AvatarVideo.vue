@@ -1016,7 +1016,29 @@ const generateDubbing = async () => {
     }
 
     console.log('🎤 配音生成结果:', data)
-    if (data.success && data.audioUrl) {
+    if (data.success && data.taskId && !data.audioUrl) {
+      const pollInterval = setInterval(async () => {
+        try {
+          const pollRes = await fetch('/api/tasks/' + data.taskId, { headers: getAuthHeaders() })
+          const pollData = await pollRes.json()
+          if (pollData.status === 'completed' && pollData.result) {
+            clearInterval(pollInterval)
+            generatedDubbingUrl.value = '' + pollData.result
+            emit('audio-generated', generatedDubbingUrl.value)
+            isGeneratingDubbing.value = false
+          } else if (pollData.status === 'failed') {
+            clearInterval(pollInterval)
+            error.value = pollData.error || '配音生成失败'
+            isGeneratingDubbing.value = false
+          }
+        } catch (e) {
+          clearInterval(pollInterval)
+          error.value = '轮询任务状态失败'
+          isGeneratingDubbing.value = false
+        }
+      }, 3000)
+      setTimeout(() => { clearInterval(pollInterval); isGeneratingDubbing.value = false }, 600000)
+    } else if (data.success && data.audioUrl) {
       generatedDubbingUrl.value = '' + data.audioUrl
       emit('audio-generated', generatedDubbingUrl.value)
     } else {

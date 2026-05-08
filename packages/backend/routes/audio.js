@@ -44,12 +44,17 @@ router.post('/generate-dubbing', async (req, res) => {
       voiceFilePath = path.join(__dirname, '..', voiceFileUrl);
     }
 
-    try {
-      const result = await audioService.generateDubbing(voiceFilePath, text, emotionDescription, userId, null);
-      res.json({ audioUrl: result.audioUrl, success: true });
-    } catch (dubbingError) {
-      res.status(500).json({ error: dubbingError.message });
-    }
+    const task = await taskService.createTask({
+      taskType: 'audio_generation',
+      userId: userId || req.userId,
+      inputParams: { voiceFileUrl, text: text.substring(0, 100), emotionDescription }
+    });
+
+    res.json({ taskId: task.id, status: 'pending', success: true });
+
+    audioService.generateDubbing(voiceFilePath, text, emotionDescription, userId || req.userId, task.id).catch(err => {
+      console.error('配音生成异步失败:', err.message);
+    });
   } catch (error) {
     console.error('配音生成失败:', error);
     res.status(500).json({ error: error.message });

@@ -630,7 +630,15 @@ const generateAudio = async () => {
       const data = await response.json()
       console.log('📦 API返回数据:', data)
 
-      if (data.success && data.audioUrl) {
+      if (data.success && data.taskId && !data.audioUrl) {
+        savePendingTask({
+          text: props.inputText,
+          voiceFileUrl: selectedVoice.value.fileUrl,
+          taskId: data.taskId
+        })
+        startPolling()
+        return { success: true, taskId: data.taskId }
+      } else if (data.success && data.audioUrl) {
         const fullAudioUrl = 'http://localhost:3001' + data.audioUrl
         console.log('🔗 完整音频URL:', fullAudioUrl)
         audioPath.value = fullAudioUrl

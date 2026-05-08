@@ -205,6 +205,9 @@ async function handleGenerate() {
       emotionDescription: voiceDescription.value || '',
       userId: user?.id
     })
+    if (result.success && result.taskId && !result.audioUrl) {
+      return { success: true, taskId: result.taskId, message: '配音任务已提交，请稍后查看结果' }
+    }
     const url = result.audioUrl || result.data?.audioUrl || result.url || result.fileUrl || ''
     if (url) {
       audioPath.value = url
