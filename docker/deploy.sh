@@ -71,6 +71,7 @@ echo "7. 配置宿主机 Nginx..."
 if command -v nginx &> /dev/null; then
   cp docker/nginx/host-shuziren.conf /etc/nginx/sites-available/shuziren
   ln -sf /etc/nginx/sites-available/shuziren /etc/nginx/sites-enabled/shuziren
+  rm -f /etc/nginx/sites-enabled/default
   if nginx -t 2>/dev/null; then
     nginx -s reload
     echo "   Nginx 配置已更新并重载"

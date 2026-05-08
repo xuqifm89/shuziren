@@ -84,6 +84,7 @@ jobs:
             fi
             cp docker/nginx/host-shuziren.conf /etc/nginx/sites-available/shuziren
             ln -sf /etc/nginx/sites-available/shuziren /etc/nginx/sites-enabled/shuziren
+            rm -f /etc/nginx/sites-enabled/default
             nginx -t && nginx -s reload
 
             echo "7. 等待服务就绪..."
