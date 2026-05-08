@@ -2,7 +2,7 @@
 set -e
 
 echo "========================================="
-echo "  拾光引擎 - 部署脚本"
+echo "  拾光引擎 - 部署脚本 (Ubuntu 22.04 + Docker 26)"
 echo "========================================="
 echo ""
 
@@ -11,74 +11,88 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 cd "$PROJECT_DIR"
 
+COMPOSE_FILE="${COMPOSE_FILE:-docker/docker-compose.simple.yml}"
 ENV_FILE="${1:-docker/.env.production}"
 
 if [ ! -f "$ENV_FILE" ]; then
-  echo "❌ 环境配置文件不存在: $ENV_FILE"
-  echo "   请复制 docker/.env.production 并修改配置"
-  echo "   cp docker/.env.production docker/.env.production.local"
+  echo "环境配置文件不存在: $ENV_FILE"
+  echo "  请复制 docker/.env.production 并修改配置"
+  echo "  cp docker/.env.production docker/.env.production.local"
   exit 1
 fi
 
-echo "📋 使用配置文件: $ENV_FILE"
+echo "使用配置文件: $ENV_FILE"
+echo "使用 Compose: $COMPOSE_FILE"
 echo ""
 
-export $(grep -v '^#' "$ENV_FILE" | grep -v '^$' | xargs)
+set -a
+source <(grep -v '^#' "$ENV_FILE" | grep -v '^$')
+set +a
 
-echo "1️⃣  检查 Docker..."
+echo "1. 检查 Docker..."
 if ! command -v docker &> /dev/null; then
-  echo "❌ Docker 未安装"
-  exit 1
+  echo "Docker 未安装，正在安装..."
+  curl -fsSL https://get.docker.com | sh
+  usermod -aG docker $USER
+  echo "Docker 安装完成，请重新登录以使 docker 组生效"
+  exit 0
 fi
-echo "   ✅ Docker $(docker --version)"
+echo "   Docker $(docker --version)"
 
 echo ""
-echo "2️⃣  检查 Docker Compose..."
+echo "2. 检查 Docker Compose..."
 if ! docker compose version &> /dev/null; then
-  echo "❌ Docker Compose 未安装"
+  echo "Docker Compose V2 未安装"
+  echo "Docker 26 自带 Compose V2 插件，请检查安装"
   exit 1
 fi
-echo "   ✅ $(docker compose version)"
+echo "   $(docker compose version)"
 
 echo ""
-echo "3️⃣  拉取最新镜像..."
-docker compose -f docker/docker-compose.prod.yml --env-file "$ENV_FILE" pull
+echo "3. 拉取最新代码..."
+if [ -d ".git" ]; then
+  git pull origin main || echo "   代码拉取失败，使用本地代码继续"
+fi
 
 echo ""
-echo "4️⃣  启动服务..."
-docker compose -f docker/docker-compose.prod.yml --env-file "$ENV_FILE" up -d --remove-orphans
+echo "4. 构建镜像..."
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build
 
 echo ""
-echo "5️⃣  等待服务就绪..."
-sleep 10
+echo "5. 启动服务..."
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
 
 echo ""
-echo "6️⃣  健康检查..."
-HEALTH_STATUS=$(curl -s http://localhost:${BACKEND_PORT:-3001}/api/health | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "failed")
+echo "6. 等待服务就绪..."
+sleep 15
+
+echo ""
+echo "7. 健康检查..."
+HEALTH_STATUS=$(curl -sf http://localhost:${BACKEND_PORT:-3001}/api/health 2>/dev/null | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4 || echo "failed")
 
 if [ "$HEALTH_STATUS" = "ok" ]; then
-  echo "   ✅ 后端服务正常"
+  echo "   后端服务正常"
 else
-  echo "   ⚠️  后端服务可能未就绪 (status: $HEALTH_STATUS)"
-  echo "   请检查日志: docker compose -f docker/docker-compose.prod.yml logs backend"
+  echo "   后端服务可能未就绪 (status: $HEALTH_STATUS)"
+  echo "   请检查日志: docker compose -f $COMPOSE_FILE logs backend"
 fi
 
 echo ""
-echo "7️⃣  清理旧镜像..."
+echo "8. 清理旧镜像..."
 docker image prune -f
 
 echo ""
 echo "========================================="
-echo "  ✅ 部署完成！"
+echo "  部署完成!"
 echo "========================================="
 echo ""
-echo "  前端:     https://your-domain.com"
-echo "  管理后台: https://admin.your-domain.com"
-echo "  移动端:   https://m.your-domain.com"
-echo "  API:      https://api.your-domain.com"
+echo "  PC 前端:  http://localhost:${FRONTEND_PORT:-80}"
+echo "  管理后台:  http://localhost:${ADMIN_PORT:-8080}"
+echo "  H5 移动端: http://localhost:${H5_PORT:-8081}"
+echo "  API:      http://localhost:${BACKEND_PORT:-3001}"
 echo ""
 echo "  常用命令:"
-echo "  查看日志: docker compose -f docker/docker-compose.prod.yml logs -f"
-echo "  重启服务: docker compose -f docker/docker-compose.prod.yml restart"
-echo "  停止服务: docker compose -f docker/docker-compose.prod.yml down"
+echo "  查看日志: docker compose -f $COMPOSE_FILE logs -f"
+echo "  重启服务: docker compose -f $COMPOSE_FILE restart"
+echo "  停止服务: docker compose -f $COMPOSE_FILE down"
 echo ""

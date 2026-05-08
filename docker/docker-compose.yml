@@ -1,19 +1,4 @@
-# ============================================
-# 拾光引擎 (ShiGuang Engine) - Docker Compose 配置
-# ============================================
-# 使用方法:
-#   启动服务:   docker compose up -d
-#   查看日志:   docker compose logs -f backend
-#   停止服务:   docker compose down
-#   重启服务:   docker compose restart
-# ============================================
-
-version: '3.8'
-
 services:
-  # ==========================================
-  # 后端 API 服务
-  # ==========================================
   backend:
     build:
       context: ../packages/backend
@@ -24,8 +9,6 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=3001
-      
-      # 数据库配置
       - DB_DIALECT=${DB_DIALECT:-sqlite}
       - DB_PATH=/app/data/database.sqlite
       - DB_HOST=${DB_HOST:-postgres}
@@ -33,48 +16,29 @@ services:
       - DB_NAME=${DB_NAME:-shuziren}
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:?请设置数据库密码}
-      
-      # 存储配置
       - STORAGE_MODE=${STORAGE_MODE:-local}
       - LOCAL_MEDIA_PATH=/app/assets
-      
-      # JWT配置
       - JWT_SECRET=${JWT_SECRET:?请设置JWT密钥}
       - ADMIN_JWT_SECRET=${ADMIN_JWT_SECRET:?请设置管理员JWT密钥}
-      
-      # CORS配置
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://localhost:5174}
-      
-      # 日志级别
       - LOG_LEVEL=${LOG_LEVEL:-info}
-      
-      # Redis（可选）
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
-    
     volumes:
-      # 本地文件存储持久化
       - shuziren-assets:/app/assets
       - shuziren-output:/app/output
       - shuziren-data:/app/data
-    
     depends_on:
       postgres:
         condition: service_healthy
-    
     restart: unless-stopped
-    
     networks:
       - shuziren-network
-    
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
 
-  # ==========================================
-  # 前端 Web 服务 (Nginx)
-  # ==========================================
   frontend-pc:
     build:
       context: ../packages/frontend-pc
@@ -101,9 +65,6 @@ services:
     networks:
       - shuziren-network
 
-  # ==========================================
-  # H5 移动端服务 (Nginx)
-  # ==========================================
   frontend-h5:
     build:
       context: ../packages/frontend-miniapp
@@ -117,9 +78,6 @@ services:
     networks:
       - shuziren-network
 
-  # ==========================================
-  # PostgreSQL 数据库（生产环境）
-  # ==========================================
   postgres:
     image: postgres:15-alpine
     container_name: shuziren-postgres
@@ -130,25 +88,17 @@ services:
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # 初始化脚本（可选）
-      # - ./docker/init-db:/docker-entrypoint-initdb.d
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
-    
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
-    
     restart: unless-stopped
-    
     networks:
       - shuziren-network
 
-  # ==========================================
-  # Redis 缓存（可选，用于会话和限流）
-  # ==========================================
   redis:
     image: redis:7-alpine
     container_name: shuziren-redis
@@ -157,21 +107,15 @@ services:
       - redis_data:/data
     ports:
       - "${REDIS_PORT:-6379}:6379"
-    
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-    
     restart: unless-stopped
-    
     networks:
       - shuziren-network
 
-  # ==========================================
-  # MinIO 对象存储（可选，替代商业OSS）
-  # ==========================================
   minio:
     image: minio/minio:latest
     container_name: shuziren-minio
@@ -182,45 +126,31 @@ services:
     volumes:
       - minio_data:/data
     ports:
-      - "${MINIO_API_PORT:-9000}:9000"   # API端口
-      - "${MINIO_CONSOLE_PORT:-9001}:9001" # 管理界面端口
-    
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
       timeout: 20s
       retries: 3
-    
     restart: unless-stopped
-    
     networks:
       - shuziren-network
 
-# ==========================================
-# 网络配置
-# ==========================================
 networks:
   shuziren-network:
     driver: bridge
 
-# ==========================================
-# 数据卷（持久化存储）
-# ==========================================
 volumes:
   postgres_data:
     name: shuziren_postgres_data
-  
   redis_data:
     name: shuziren_redis_data
-  
   minio_data:
     name: shuziren_minio_data
-  
   shuziren-assets:
     name: shuziren_assets
-  
   shuziren-output:
     name: shuziren_output
-  
   shuziren-data:
     name: shuziren_data

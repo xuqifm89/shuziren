@@ -1,27 +1,64 @@
-# 拾光引擎 - 服务器部署指南
+# 拾光引擎 - 服务器部署指南 (Ubuntu 22.04 + Docker 26)
 
-## 🚀 快速开始（推荐使用简化版）
+## 架构概览
 
-### 第一步：连接到服务器
-
-```bash
-ssh root@43.155.188.118
+```
+                    ┌─────────────────────────────────────────┐
+                    │           Ubuntu 22.04 Server           │
+                    │              Docker 26                  │
+                    │                                         │
+  :80  ──────────► │  ┌─────────┐   ┌──────────────┐        │
+                    │  │  Nginx  │──►│ frontend-pc  │        │
+  :8080 ─────────► │  │(reverse │──►│ admin-panel  │        │
+  :8081 ─────────► │  │  proxy) │──►│ frontend-h5  │        │
+                    │  │         │──►│ backend:3001 │        │
+                    │  └─────────┘   └──────────────┘        │
+                    │       │                                │
+                    │       ▼                                │
+                    │  ┌──────────────┐                      │
+                    │  │   Volumes    │                      │
+                    │  │  assets/     │                      │
+                    │  │  output/     │                      │
+                    │  │  data/       │                      │
+                    │  └──────────────┘                      │
+                    └─────────────────────────────────────────┘
 ```
 
-### 第二步：检查 Docker 环境
+## 部署流程
 
-```bash
-# 检查 Docker 版本
-docker --version
-
-# 检查 Docker Compose 版本
-docker compose version
-
-# 如果没有 Docker Compose，安装它
-apt update && apt install -y docker-compose
+```
+本地代码 → git push → GitHub → GitHub Actions → SSH → 服务器 git pull → docker compose build → docker compose up
 ```
 
-### 第三步：克隆项目代码
+---
+
+## 快速开始
+
+### 第一步：服务器环境准备 (Ubuntu 22.04)
+
+```bash
+# 更新系统
+apt update && apt upgrade -y
+
+# 安装 Docker 26
+curl -fsSL https://get.docker.com | sh
+
+# 验证安装
+docker --version        # 应显示 Docker 26.x
+docker compose version  # 应显示 Docker Compose V2
+
+# 将当前用户加入 docker 组（免 sudo）
+usermod -aG docker $USER
+
+# 重新登录使组生效
+exit
+# 重新 SSH 登录
+
+# 安装 Git
+apt install -y git curl
+```
+
+### 第二步：克隆项目代码
 
 ```bash
 cd /opt
@@ -29,175 +66,254 @@ git clone https://github.com/xuqifm89/shuziren.git
 cd shuziren
 ```
 
-### 第四步：配置环境变量
+### 第三步：配置环境变量
 
 ```bash
 # 复制环境变量配置文件
-cp docker/.env.production docker/.env
+cp docker/.env.production docker/.env.local
 
-# 编辑环境变量（可选，大部分已配置好）
-nano docker/.env
+# 编辑环境变量（必须修改密钥！）
+nano docker/.env.local
 ```
 
-**可选修改的内容：**
+**必须修改的配置：**
 ```env
-# JWT 密钥（建议修改为更安全的值）
-JWT_SECRET=your_random_jwt_secret_key_here_at_least_32_chars
-ADMIN_JWT_SECRET=your_admin_jwt_secret_key_here
+# 数据库密码
+DB_PASSWORD=your_strong_password_here
 
-# 修改 CORS 允许的域名（如果有自定义域名）
-CORS_ORIGINS=http://your-domain.com,http://admin.your-domain.com
+# JWT 密钥（至少 32 字符随机字符串）
+JWT_SECRET=your_random_jwt_secret_key_at_least_32_chars
+ADMIN_JWT_SECRET=your_admin_jwt_secret_key_at_least_32_chars
+CONFIG_ENCRYPTION_KEY=your_config_encryption_key_here
+
+# CORS 允许的域名
+CORS_ORIGINS=http://your-server-ip,http://your-server-ip:8080,http://your-server-ip:8081
 ```
 
-### 第五步：启动服务（简化版，使用 SQLite）
+**生成随机密钥：**
+```bash
+openssl rand -hex 32
+```
+
+### 第四步：启动服务
 
 ```bash
-# 进入 docker 目录
-cd docker
+cd /opt/shuziren
 
-# 构建并启动所有服务（后台运行，使用简化版配置）
-docker compose -f docker-compose.simple.yml up -d --build
+# 方式一：使用部署脚本（推荐）
+bash docker/deploy.sh docker/.env.local
 
-# 查看服务状态
-docker compose -f docker-compose.simple.yml ps
+# 方式二：手动启动
+docker compose -f docker/docker-compose.simple.yml --env-file docker/.env.local up -d --build
+```
+
+### 第五步：验证服务
+
+```bash
+# 查看容器状态
+docker compose -f docker/docker-compose.simple.yml ps
+
+# 检查后端健康
+curl http://localhost:3001/api/health
 
 # 查看日志
-docker compose -f docker-compose.simple.yml logs -f
+docker compose -f docker/docker-compose.simple.yml logs -f
 ```
 
 ### 第六步：访问服务
 
-部署成功后，可以通过以下地址访问：
-
 | 服务 | 地址 |
 |------|------|
-| PC 前端 | http://43.155.188.118 |
-| 管理后台 | http://43.155.188.118:8080 |
-| H5 移动端 | http://43.155.188.118:8081 |
-| 后端 API | http://43.155.188.118:3001 |
+| PC 前端 | http://your-server-ip |
+| 管理后台 | http://your-server-ip:8080 |
+| H5 移动端 | http://your-server-ip:8081 |
+| 后端 API | http://your-server-ip:3001 |
 
 ---
 
-## 📋 常用管理命令
+## GitHub Actions 自动部署
 
-### 查看服务状态
+### 配置 Secrets
+
+在 GitHub 仓库 → Settings → Secrets and variables → Actions 中添加：
+
+| Secret 名称 | 说明 |
+|-------------|------|
+| `DEPLOY_HOST` | 服务器 IP 地址 |
+| `DEPLOY_USER` | SSH 用户名（如 root） |
+| `DEPLOY_SSH_KEY` | SSH 私钥 |
+
+### 生成 SSH 密钥
+
 ```bash
-cd /opt/shuziren/docker
-docker compose -f docker-compose.simple.yml ps
+# 在服务器上生成密钥对
+ssh-keygen -t ed25519 -C "github-actions" -f ~/.ssh/github_actions
+
+# 将公钥加入 authorized_keys
+cat ~/.ssh/github_actions.pub >> ~/.ssh/authorized_keys
+
+# 将私钥内容复制到 GitHub Secrets（DEPLOY_SSH_KEY）
+cat ~/.ssh/github_actions
 ```
 
-### 查看日志
-```bash
-# 查看所有服务日志
-docker compose -f docker-compose.simple.yml logs -f
+### 部署触发
 
-# 查看特定服务日志
-docker compose -f docker-compose.simple.yml logs -f backend
-docker compose -f docker-compose.simple.yml logs -f frontend-pc
+- 推送到 `main` 分支自动触发部署
+- 推送到 `develop` 分支只运行测试
+- PR 到 `main` 只运行测试
+
+---
+
+## 三种部署模式
+
+### 1. Simple 模式（推荐入门）
+
+- SQLite 数据库
+- 无 Redis/MinIO
+- 统一 Nginx 反向代理
+- 适合：小型部署、测试环境
+
+```bash
+docker compose -f docker/docker-compose.simple.yml --env-file docker/.env.local up -d --build
 ```
 
-### 重启服务
-```bash
-# 重启所有服务
-docker compose -f docker-compose.simple.yml restart
+### 2. Full 模式（推荐生产）
 
-# 重启单个服务
-docker compose -f docker-compose.simple.yml restart backend
+- PostgreSQL 数据库
+- Redis 缓存
+- MinIO 对象存储
+- 各服务独立端口
+- 适合：正式生产环境
+
+```bash
+docker compose -f docker/docker-compose.yml --env-file docker/.env.local up -d --build
 ```
 
-### 停止服务
+### 3. Prod 模式（镜像仓库）
+
+- 使用预构建镜像
+- 统一 Nginx + SSL
+- 适合：CI/CD 流水线 + 镜像仓库
+
 ```bash
-# 停止但保留数据
-docker compose -f docker-compose.simple.yml stop
-
-# 停止并删除容器（数据保留）
-docker compose -f docker-compose.simple.yml down
-
-# 停止并删除所有（包括数据，谨慎使用！）
-docker compose -f docker-compose.simple.yml down -v
+docker compose -f docker/docker-compose.prod.yml --env-file docker/.env.local pull
+docker compose -f docker/docker-compose.prod.yml --env-file docker/.env.local up -d
 ```
 
-### 更新代码并重新部署
+---
+
+## 常用管理命令
+
 ```bash
 cd /opt/shuziren
 
-# 拉取最新代码
-git pull
+# 查看服务状态
+docker compose -f docker/docker-compose.simple.yml ps
 
-# 重新构建并启动
-cd docker
-docker compose -f docker-compose.simple.yml up -d --build
+# 查看日志
+docker compose -f docker/docker-compose.simple.yml logs -f
+docker compose -f docker/docker-compose.simple.yml logs -f backend
+
+# 重启服务
+docker compose -f docker/docker-compose.simple.yml restart
+docker compose -f docker/docker-compose.simple.yml restart backend
+
+# 停止服务
+docker compose -f docker/docker-compose.simple.yml down
+
+# 停止并删除数据（危险！）
+docker compose -f docker/docker-compose.simple.yml down -v
+
+# 更新并重新部署
+git pull origin main
+docker compose -f docker/docker-compose.simple.yml up -d --build
+
+# 进入后端容器
+docker exec -it shuziren-backend sh
+
+# 清理旧镜像
+docker image prune -f
 ```
 
 ---
 
-## 🔒 防火墙配置
+## 防火墙配置
 
-### 开放必要端口
 ```bash
-# Ubuntu 使用 ufw
-ufw allow 80/tcp
-ufw allow 8080/tcp
-ufw allow 8081/tcp
-ufw allow 3001/tcp
+# Ubuntu UFW
+ufw allow 22/tcp    # SSH
+ufw allow 80/tcp    # PC 前端
+ufw allow 8080/tcp  # 管理后台
+ufw allow 8081/tcp  # H5 移动端
+ufw allow 3001/tcp  # API（可选，通过 Nginx 代理后可不开放）
 ufw enable
-```
 
-或者使用 iptables：
-```bash
-iptables -I INPUT -p tcp --dport 80 -j ACCEPT
-iptables -I INPUT -p tcp --dport 8080 -j ACCEPT
-iptables -I INPUT -p tcp --dport 8081 -j ACCEPT
-iptables -I INPUT -p tcp --dport 3001 -j ACCEPT
+# 查看状态
+ufw status
 ```
 
 ---
 
-## 💾 数据备份
+## 数据备份
 
-### 备份数据库
 ```bash
-# 备份 Postgres 数据
-docker exec shuziren-postgres pg_dump -U postgres shuziren > backup.sql
+# 备份数据卷
+docker run --rm -v shuziren_data:/data -v $(pwd):/backup alpine \
+  tar czf /backup/data_backup_$(date +%Y%m%d).tar.gz /data
 
-# 或者备份整个数据卷
-docker run --rm -v shuziren_postgres_data:/data -v $(pwd):/backup alpine tar czf /backup/postgres_backup.tar.gz /data
-```
+docker run --rm -v shuziren_assets:/data -v $(pwd):/backup alpine \
+  tar czf /backup/assets_backup_$(date +%Y%m%d).tar.gz /data
 
-### 备份上传文件
-```bash
-docker run --rm -v shuziren_assets:/data -v $(pwd):/backup alpine tar czf /backup/assets_backup.tar.gz /data
+# 恢复数据
+docker run --rm -v shuziren_data:/data -v $(pwd):/backup alpine \
+  tar xzf /backup/data_backup_YYYYMMDD.tar.gz -C /
 ```
 
 ---
 
-## ⚠️ 常见问题
+## 常见问题
 
-### 1. 端口被占用
-如果端口被占用，可以修改 `docker/.env` 文件中的端口：
+### 1. Docker 命令需要 sudo
+
+```bash
+# 将用户加入 docker 组
+sudo usermod -aG docker $USER
+# 重新登录
+```
+
+### 2. 端口被占用
+
+修改 `docker/.env.local` 中的端口：
 ```env
-FRONTEND_PORT=8080
-ADMIN_PORT=8081
-H5_PORT=8082
+FRONTEND_PORT=8082
+ADMIN_PORT=8083
+H5_PORT=8084
 BACKEND_PORT=3002
 ```
 
-### 2. 内存不足
-如果服务器内存小于 2GB，可能需要关闭一些服务，修改 `docker-compose.yml` 注释掉不需要的服务。
+### 3. 构建失败 / 内存不足
 
-### 3. 构建失败
-如果构建过程中出现问题，可以尝试：
 ```bash
 # 清理缓存重新构建
-docker compose build --no-cache
-docker compose up -d
+docker compose -f docker/docker-compose.simple.yml build --no-cache
+
+# 查看系统资源
+free -h
+df -h
+
+# 清理 Docker 空间
+docker system prune -a
 ```
 
----
+### 4. 查看详细日志排查问题
 
-## 📞 需要帮助？
-
-查看日志找问题：
 ```bash
-docker compose logs backend
+# 后端日志
+docker compose -f docker/docker-compose.simple.yml logs --tail 100 backend
+
+# Nginx 日志
+docker compose -f docker/docker-compose.simple.yml logs --tail 100 nginx
+
+# 实时跟踪
+docker compose -f docker/docker-compose.simple.yml logs -f --tail 50
 ```
