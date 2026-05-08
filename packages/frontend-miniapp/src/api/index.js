@@ -4,6 +4,24 @@ function getToken() {
   return uni.getStorageSync('token') || ''
 }
 
+export async function uploadFile(url, filePath, name = 'file', formData = {}) {
+  const token = getToken()
+  return new Promise((resolve, reject) => {
+    uni.uploadFile({
+      url: `${BASE_URL}${url}`,
+      filePath,
+      name,
+      formData,
+      header: token ? { 'Authorization': `Bearer ${token}` } : {},
+      success: (res) => {
+        if (res.statusCode >= 400) { reject(new Error('上传失败')); return }
+        try { resolve(JSON.parse(res.data)) } catch (e) { resolve(res.data) }
+      },
+      fail: (err) => reject(new Error(err.errMsg || '上传失败'))
+    })
+  })
+}
+
 const api = {
   async request(url, options = {}) {
     const token = getToken()
@@ -41,29 +59,40 @@ const api = {
   post(url, data = {}) { return this.request(url, { method: 'POST', data }) },
   put(url, data = {}) { return this.request(url, { method: 'PUT', data }) },
   delete(url, data = {}) { return this.request(url, { method: 'DELETE', data }) },
+  uploadFile,
+  resolveApiUrl(url) { return url },
   auth: {
     login(data) { return api.post('/users/login', data) },
     register(data) { return api.post('/users/register', data) }
   },
+  library: {
+    voiceLibrary: (params) => api.get('/voice-library', params),
+    portraitLibrary: (params) => api.get('/portrait-library', params),
+    dubbingLibrary: (params) => api.get('/dubbing-library', params),
+    musicLibrary: (params) => api.get('/music-library', params),
+    copyLibrary: (params) => api.get('/copy-library', params),
+    promptLibrary: (params) => api.get('/prompt-library', params),
+    workLibrary: (params) => api.get('/work-library', params)
+  },
+  voices: {
+    list: (params) => api.get('/voice-library', params),
+    delete: (id) => api.delete(`/voice-library/${id}`),
+    upload: (fp) => uploadFile('/voice-library/upload', fp, 'audio')
+  },
+  avatars: {
+    list: (params) => api.get('/portrait-library', params),
+    delete: (id) => api.delete(`/portrait-library/${id}`),
+    upload: (fp) => uploadFile('/portrait-library/upload', fp, 'image', { type: 'image' })
+  },
+  dubbing: {
+    list: (params) => api.get('/dubbing-library', params),
+    delete: (id) => api.delete(`/dubbing-library/${id}`)
+  },
+  video: {
+    list: (params) => api.get('/work-library', params),
+    delete: (id) => api.delete(`/work-library/${id}`)
+  },
   getBaseUrl() { return BASE_URL }
-}
-
-export async function uploadFile(url, filePath, name = 'file', formData = {}) {
-  const token = getToken()
-  return new Promise((resolve, reject) => {
-    uni.uploadFile({
-      url: `${BASE_URL}${url}`,
-      filePath,
-      name,
-      formData,
-      header: token ? { 'Authorization': `Bearer ${token}` } : {},
-      success: (res) => {
-        if (res.statusCode >= 400) { reject(new Error('上传失败')); return }
-        try { resolve(JSON.parse(res.data)) } catch (e) { resolve(res.data) }
-      },
-      fail: (err) => reject(new Error(err.errMsg || '上传失败'))
-    })
-  })
 }
 
 export default api

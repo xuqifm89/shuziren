@@ -1021,14 +1021,14 @@ const generateDubbing = async () => {
         try {
           const pollRes = await fetch('/api/tasks/' + data.taskId, { headers: getAuthHeaders() })
           const pollData = await pollRes.json()
-          if (pollData.status === 'completed' && pollData.result) {
+          if (pollData.status === 'success' && pollData.outputUrl) {
             clearInterval(pollInterval)
-            generatedDubbingUrl.value = '' + pollData.result
+            generatedDubbingUrl.value = '' + pollData.outputUrl
             emit('audio-generated', generatedDubbingUrl.value)
             isGeneratingDubbing.value = false
-          } else if (pollData.status === 'failed') {
+          } else if (pollData.status === 'error') {
             clearInterval(pollInterval)
-            error.value = pollData.error || '配音生成失败'
+            error.value = pollData.errorMessage || '配音生成失败'
             isGeneratingDubbing.value = false
           }
         } catch (e) {

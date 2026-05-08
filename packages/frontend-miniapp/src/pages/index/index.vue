@@ -320,8 +320,11 @@ function handleClipLocalUpload() {
         uni.showLoading({ title: '上传中...' })
         const uploadResult = await uploadFile('/clips/upload-video', res.tempFilePath, 'video')
         if (uploadResult.videoUrl) clipVideo.value = uploadResult.videoUrl
-      } catch (e) {}
-      finally { uni.hideLoading() }
+      } catch (e) {
+        uni.showToast({ title: '上传失败', icon: 'none' })
+      } finally {
+        uni.hideLoading()
+      }
     }
   })
 }
@@ -342,8 +345,11 @@ function handlePublishLocalUpload() {
         uni.showLoading({ title: '上传中...' })
         const uploadResult = await uploadFile('/clips/upload-video', res.tempFilePath, 'video')
         if (uploadResult.videoUrl) publishVideo.value = uploadResult.videoUrl
-      } catch (e) {}
-      finally { uni.hideLoading() }
+      } catch (e) {
+        uni.showToast({ title: '上传失败', icon: 'none' })
+      } finally {
+        uni.hideLoading()
+      }
     }
   })
 }

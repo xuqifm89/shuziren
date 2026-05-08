@@ -57,12 +57,12 @@ const handleSubmit = async () => {
       oldPassword: form.value.currentPassword,
       newPassword: form.value.newPassword
     })
-    uni.hideLoading()
     uni.showToast({ title: '密码修改成功', icon: 'success' })
     setTimeout(() => uni.navigateBack(), 500)
   } catch (e) {
-    uni.hideLoading()
     uni.showToast({ title: '密码修改失败', icon: 'none' })
+  } finally {
+    uni.hideLoading()
   }
 }
 </script>

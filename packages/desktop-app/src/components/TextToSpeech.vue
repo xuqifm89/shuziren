@@ -123,11 +123,11 @@ const isUploadingVoice = ref(false)
 const voiceUploadInput = ref(null)
 let currentAudio = null
 
-// 轮询保底相关变量
 let pollingTimer = null
 let backgroundCheckTimer = null
 let pollingAttempts = 0
-const lastAudioUrlLength = ref(0)  // 用于检测新生成的音频
+let currentTaskId = null
+let taskManagerUnsubscribe = null
 
 const getCurrentUser = () => {
   try {
@@ -146,20 +146,34 @@ onMounted(() => {
   fetchVoices()
   fetchLatestDubbing()
 
-  // 初始化时记录当前音频URL长度
-  lastAudioUrlLength.value = audioPath.value.length
-
-  // 检查是否有未完成的任务需要恢复
   checkAndRestorePendingTask()
 
-  // 后台定期检查已禁用（避免不必要的日志和请求）
-  // startBackgroundCheck()
+  taskManagerUnsubscribe = taskManager.subscribe((taskState) => {
+    if (taskState.status === 'success' && taskState.outputUrl) {
+      const url = 'http://localhost:3001' + taskState.outputUrl
+      if (url && url !== audioPath.value) {
+        audioPath.value = url
+        audioFilename.value = 'dubbing.wav'
+        stopPolling()
+        clearPendingTask()
+        emit('audio-generated', audioPath.value)
+      }
+    }
+    if (taskState.status === 'error') {
+      error.value = taskState.errorMessage || '配音生成失败'
+      stopPolling()
+      clearPendingTask()
+    }
+  })
 })
 
-// 组件卸载时清理定时器
 onUnmounted(() => {
   stopPolling()
   stopBackgroundCheck()
+  if (taskManagerUnsubscribe) {
+    taskManagerUnsubscribe()
+    taskManagerUnsubscribe = null
+  }
 })
 
 const fetchLatestDubbing = async () => {
@@ -174,7 +188,6 @@ const fetchLatestDubbing = async () => {
     if (Array.isArray(data) && data.length > 0 && data[0].fileUrl) {
       audioPath.value = 'http://localhost:3001' + data[0].fileUrl
       audioFilename.value = data[0].fileName || ''
-      lastAudioUrlLength.value = audioPath.value.length
     }
   } catch (err) {
     console.error('Failed to fetch latest dubbing:', err)
@@ -213,7 +226,6 @@ const checkAndRestorePendingTask = async () => {
     const pendingTask = JSON.parse(pendingTaskStr)
     console.log('🔄 发现未完成的配音任务:', pendingTask)
 
-    // 检查任务是否超时（超过30分钟则清除）
     const elapsed = Date.now() - pendingTask.startTime
     if (elapsed > 30 * 60 * 1000) {
       console.log('⏰ 配音任务已超时，清除')
@@ -221,16 +233,9 @@ const checkAndRestorePendingTask = async () => {
       return
     }
 
-    // 立即执行一次检查
-    await checkForNewAudio()
-
-    // 如果仍然没有结果，启动轮询
-    if (!audioPath.value || audioPath.value.length <= lastAudioUrlLength.value) {
-      console.log('🔄 启动轮询恢复配音任务...')
+    if (pendingTask.taskId) {
+      currentTaskId = pendingTask.taskId
       startPolling()
-    } else {
-      // 已经有新结果了，清除任务
-      clearPendingTask()
     }
   } catch (err) {
     console.error('❌ 恢复配音任务失败:', err)
@@ -238,32 +243,27 @@ const checkAndRestorePendingTask = async () => {
   }
 }
 
-/**
- * 开始轮询检查音频生成结果
- */
 const startPolling = () => {
   stopPolling()
 
-  console.log('🔄 开始轮询配音任务')
+  console.log('🔄 开始轮询配音任务, taskId:', currentTaskId)
   pollingAttempts = 0
 
   pollingTimer = setInterval(async () => {
     pollingAttempts++
     console.log(`📊 轮询检查配音 [${pollingAttempts}/${POLLING_CONFIG.maxAttempts}]`)
 
-    await checkForNewAudio()
+    await pollTaskResult()
 
     if (pollingAttempts >= POLLING_CONFIG.maxAttempts) {
       console.log('⏰ 配音轮询达到最大次数，停止')
       stopPolling()
       clearPendingTask()
+      error.value = '配音生成超时，请稍后在配音库中查看'
     }
   }, POLLING_CONFIG.interval)
 }
 
-/**
- * 停止轮询
- */
 const stopPolling = () => {
   if (pollingTimer) {
     clearInterval(pollingTimer)
@@ -272,9 +272,6 @@ const stopPolling = () => {
   }
 }
 
-/**
- * 启动后台定期检查
- */
 const startBackgroundCheck = () => {
   if (backgroundCheckTimer) return
 
@@ -287,9 +284,6 @@ const startBackgroundCheck = () => {
   console.log('✅ 配音后台检查已启动')
 }
 
-/**
- * 停止后台检查
- */
 const stopBackgroundCheck = () => {
   if (backgroundCheckTimer) {
     clearInterval(backgroundCheckTimer)
@@ -297,58 +291,42 @@ const stopBackgroundCheck = () => {
   }
 }
 
-/**
- * 检查是否有新生成的音频文件
- */
-const checkForNewAudio = async () => {
+const pollTaskResult = async () => {
+  if (!currentTaskId) return false
+
   try {
-    const user = getCurrentUser()
-    let url = 'http://localhost:3001/api/dubbing-library'
-    if (user?.id) {
-      url += `?userId=${user.id}`
-    }
+    const response = await authFetch(`http://localhost:3001/api/tasks/${currentTaskId}`)
+    const task = await response.json()
 
-    const response = await authFetch(url)
-    const data = await response.json()
+    if (task.status === 'success' && task.outputUrl) {
+      const url = 'http://localhost:3001' + task.outputUrl
+      audioPath.value = url
+      audioFilename.value = 'dubbing.wav'
 
-    if (!Array.isArray(data) || data.length === 0) return false
-
-    // 找到最新的配音记录
-    const latestDubbing = data[0]
-    const newAudioUrl = latestDubbing.fileUrl ? ('http://localhost:3001' + latestDubbing.fileUrl) : ''
-
-    if (newAudioUrl && newAudioUrl.length > lastAudioUrlLength.value) {
-      console.log('✅ 发现新生成的音频!')
-
-      // 更新UI
-      audioPath.value = newAudioUrl
-      audioFilename.value = latestDubbing.fileName || ''
-      lastAudioUrlLength.value = newAudioUrl.length
-
-      // 停止轮询并清除任务
       stopPolling()
       clearPendingTask()
-
-      // 触发事件通知父组件
       emit('audio-generated', audioPath.value)
+      return true
+    }
 
-      // 显示提示
-      error.value = '✅ 音频生成完成（自动恢复）'
-      setTimeout(() => { error.value = '' }, 3000)
-
+    if (task.status === 'error') {
+      error.value = task.errorMessage || '配音生成失败'
+      stopPolling()
+      clearPendingTask()
       return true
     }
 
     return false
   } catch (err) {
-    console.error('❌ 检查音频结果失败:', err)
+    console.error('❌ 轮询任务状态失败:', err)
     return false
   }
 }
 
-/**
- * 定期检查最新的配音记录（后台检查用）
- */
+const checkForNewAudio = async () => {
+  return await pollTaskResult()
+}
+
 const checkForLatestDubbingBg = async () => {
   try {
     if (!audioPath.value) return
@@ -370,11 +348,9 @@ const checkForLatestDubbingBg = async () => {
         console.log('🔄 后台检查发现更新的音频')
         audioPath.value = newAudioUrl
         audioFilename.value = latestDubbing.fileName || ''
-        lastAudioUrlLength.value = newAudioUrl.length
       }
     }
   } catch (err) {
-    // 静默失败
   }
 }
 
@@ -584,23 +560,11 @@ const generateAudio = async () => {
 
   taskManager.executeAfterConfirm(async () => {
     try {
-      console.log('🛑 [TextToSpeech] 停止所有现有轮询...')
       stopPolling()
       stopBackgroundCheck()
 
       isGenerating.value = true
       error.value = ''
-
-      lastAudioUrlLength.value = audioPath.value.length
-      console.log('💾 [TextToSpeech] 准备调用配音 API...')
-
-      console.log('🔊 开始生成配音...')
-      console.log('📝 [TextToSpeech] 请求参数:', {
-        voiceFileUrl: 'http://localhost:3001' + selectedVoice.value.fileUrl,
-        text: props.inputText?.substring(0, 50) + (props.inputText?.length > 50 ? '...' : ''),
-        emotionDescription: selectedVoice.value.description || '',
-        userId: getCurrentUser()?.id
-      })
 
       let response
       try {
@@ -615,22 +579,18 @@ const generateAudio = async () => {
           })
         })
       } catch (networkErr) {
-        console.error('❌ [TextToSpeech] 网络请求失败:', networkErr)
         throw new Error(`网络连接失败: ${networkErr.message}`)
       }
 
-      console.log('📨 API响应状态:', response.status)
-
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('❌ [TextToScript] HTTP错误:', response.status, errorText)
         throw new Error(`服务器错误 (${response.status}): ${errorText}`)
       }
 
       const data = await response.json()
-      console.log('📦 API返回数据:', data)
 
       if (data.success && data.taskId && !data.audioUrl) {
+        currentTaskId = data.taskId
         savePendingTask({
           text: props.inputText,
           voiceFileUrl: selectedVoice.value.fileUrl,
@@ -640,28 +600,22 @@ const generateAudio = async () => {
         return { success: true, taskId: data.taskId }
       } else if (data.success && data.audioUrl) {
         const fullAudioUrl = 'http://localhost:3001' + data.audioUrl
-        console.log('🔗 完整音频URL:', fullAudioUrl)
         audioPath.value = fullAudioUrl
         audioFilename.value = data.fileName || 'dubbing.wav'
-        lastAudioUrlLength.value = fullAudioUrl.length
-        console.log('✅ audioPath已设置:', audioPath.value)
 
         clearPendingTask()
         stopPolling()
         stopBackgroundCheck()
 
-        console.log('✅ [TextToSpeech] 配音生成成功，已停止所有后台任务')
-
         emit('audio-generated', audioPath.value)
         return { success: true, message: '配音生成完成' }
       } else {
-        console.error('❌ [TextToScript] 业务逻辑错误:', data.error)
         throw new Error(data.error || '配音生成失败')
       }
     } catch (err) {
       console.error('❌ [TextToSpeech] 配音生成异常:', err)
       error.value = err.message || '配音生成失败'
-      throw err  // 重新抛出，让 taskManager 捕获
+      throw err
     } finally {
       isGenerating.value = false
     }

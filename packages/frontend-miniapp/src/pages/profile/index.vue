@@ -70,11 +70,11 @@ const chooseAvatar = () => {
           'file'
         )
         userStore.setUser({ ...userStore.userInfo, avatar: result.avatarUrl })
-        uni.hideLoading()
         uni.showToast({ title: '头像更新成功', icon: 'success' })
       } catch (e) {
-        uni.hideLoading()
         uni.showToast({ title: '上传失败', icon: 'none' })
+      } finally {
+        uni.hideLoading()
       }
     }
   })
@@ -87,14 +87,14 @@ const handleSave = async () => {
   }
   try {
     uni.showLoading({ title: '保存中...' })
-    await api.request(`/users/${userStore.userInfo.id}`, 'PUT', form.value)
+    await api.put(`/users/${userStore.userInfo.id}`, form.value)
     userStore.setUser({ ...userStore.userInfo, ...form.value })
-    uni.hideLoading()
     uni.showToast({ title: '保存成功', icon: 'success' })
     setTimeout(() => uni.navigateBack(), 500)
   } catch (e) {
-    uni.hideLoading()
     uni.showToast({ title: '保存失败', icon: 'none' })
+  } finally {
+    uni.hideLoading()
   }
 }
 </script>

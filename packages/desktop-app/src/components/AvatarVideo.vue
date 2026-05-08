@@ -1044,14 +1044,14 @@ const generateDubbing = async () => {
         try {
           const pollRes = await authFetch('http://localhost:3001/api/tasks/' + data.taskId)
           const pollData = await pollRes.json()
-          if (pollData.status === 'completed' && pollData.result) {
+          if (pollData.status === 'success' && pollData.outputUrl) {
             clearInterval(pollInterval)
-            generatedDubbingUrl.value = 'http://localhost:3001' + pollData.result
+            generatedDubbingUrl.value = 'http://localhost:3001' + pollData.outputUrl
             emit('audio-generated', generatedDubbingUrl.value)
             isGeneratingDubbing.value = false
-          } else if (pollData.status === 'failed') {
+          } else if (pollData.status === 'error') {
             clearInterval(pollInterval)
-            error.value = pollData.error || '配音生成失败'
+            error.value = pollData.errorMessage || '配音生成失败'
             isGeneratingDubbing.value = false
           }
         } catch (e) {
