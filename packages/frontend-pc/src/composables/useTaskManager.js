@@ -41,11 +41,15 @@ function startPolling() {
     }
 
     try {
-      const response = await fetch(`/api/tasks/${state.serverTaskId}`, {
-        headers: getAuthHeaders()
+      const response = await fetch(`/api/tasks/${state.serverTaskId}?_t=${Date.now()}`, {
+        headers: {
+          ...getAuthHeaders(),
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
       })
 
-      if (!response.ok) {
+      if (response.status === 304 || !response.ok) {
         return
       }
 
