@@ -1026,6 +1026,10 @@ const generateDubbing = async () => {
             generatedDubbingUrl.value = '' + pollData.outputUrl
             emit('audio-generated', generatedDubbingUrl.value)
             isGeneratingDubbing.value = false
+          } else if (pollData.status === 'timeout') {
+            clearInterval(pollInterval)
+            error.value = '⏰ AI处理时间较长，任务已转入后台执行，完成后将自动保存到配音库'
+            isGeneratingDubbing.value = false
           } else if (pollData.status === 'error') {
             clearInterval(pollInterval)
             error.value = pollData.errorMessage || '配音生成失败'

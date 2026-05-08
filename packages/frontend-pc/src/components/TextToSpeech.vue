@@ -154,6 +154,11 @@ onMounted(() => {
         emit('audio-generated', audioPath.value)
       }
     }
+    if (taskState.status === 'timeout') {
+      stopPolling()
+      clearPendingTask()
+      error.value = '⏰ AI处理时间较长，任务已转入后台执行，完成后将自动保存到配音库，请稍后在配音库中查看'
+    }
     if (taskState.status === 'error') {
       error.value = taskState.errorMessage || '配音生成失败'
       stopPolling()
@@ -301,6 +306,13 @@ const pollTaskResult = async () => {
       stopPolling()
       clearPendingTask()
       emit('audio-generated', audioPath.value)
+      return true
+    }
+
+    if (task.status === 'timeout') {
+      stopPolling()
+      clearPendingTask()
+      error.value = '⏰ AI处理时间较长，任务已转入后台执行，完成后将自动保存到配音库，请稍后在配音库中查看'
       return true
     }
 

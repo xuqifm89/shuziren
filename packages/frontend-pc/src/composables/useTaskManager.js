@@ -53,6 +53,13 @@ function initWebSocket() {
         }
         completeTask(data.message || `${state.taskName}已完成`)
       }
+      if (data.status === 'timeout') {
+        state.progressMessage = data.message || 'AI处理时间较长，任务转入后台执行'
+        state.errorMessage = data.message || 'AI处理时间较长，任务转入后台执行'
+        state.status = 'timeout'
+        saveState()
+        notifyListeners()
+      }
       if (data.status === 'error') {
         failTask(data.errorMessage || data.message || '任务执行失败')
       }
