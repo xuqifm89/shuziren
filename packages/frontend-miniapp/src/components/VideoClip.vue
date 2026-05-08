@@ -672,6 +672,7 @@ async function handleUseCover() {
         posY: coverStyle.posY
       }
     })
+    uni.hideLoading()
     if (result.success && result.coverUrl) {
       generatedCoverPath.value = result.coverUrl
       coverUsed.value = true
@@ -680,9 +681,8 @@ async function handleUseCover() {
       uni.showToast({ title: result.error || '封面设置失败', icon: 'none' })
     }
   } catch (err) {
-    uni.showToast({ title: '封面设置失败', icon: 'none' })
-  } finally {
     uni.hideLoading()
+    uni.showToast({ title: '封面设置失败', icon: 'none' })
   }
 }
 
@@ -747,11 +747,11 @@ async function handleSaveToLibrary() {
       category: 'default'
     })
     savedToLibrary.value = true
+    uni.hideLoading()
     uni.showToast({ title: '已存入视频库', icon: 'success' })
   } catch (err) {
-    uni.showToast({ title: '保存失败', icon: 'none' })
-  } finally {
     uni.hideLoading()
+    uni.showToast({ title: '保存失败', icon: 'none' })
   }
 }
 </script>

@@ -255,11 +255,11 @@ function handleUpload() {
           delete allItems.value[key]
           loadItems(key)
           loadCounts()
+          uni.hideLoading()
           uni.showToast({ title: '上传成功', icon: 'success' })
         } catch (e) {
-          uni.showToast({ title: '上传失败', icon: 'none' })
-        } finally {
           uni.hideLoading()
+          uni.showToast({ title: '上传失败', icon: 'none' })
         }
       }
     })
@@ -277,11 +277,11 @@ function handleUpload() {
           delete allItems.value[key]
           loadItems(key)
           loadCounts()
+          uni.hideLoading()
           uni.showToast({ title: '上传成功', icon: 'success' })
         } catch (e) {
-          uni.showToast({ title: '上传失败', icon: 'none' })
-        } finally {
           uni.hideLoading()
+          uni.showToast({ title: '上传失败', icon: 'none' })
         }
       }
     })
@@ -301,11 +301,11 @@ function handleUpload() {
           delete allItems.value[key]
           loadItems(key)
           loadCounts()
+          uni.hideLoading()
           uni.showToast({ title: '上传成功', icon: 'success' })
         } catch (e) {
-          uni.showToast({ title: '上传失败', icon: 'none' })
-        } finally {
           uni.hideLoading()
+          uni.showToast({ title: '上传失败', icon: 'none' })
         }
       }
     })

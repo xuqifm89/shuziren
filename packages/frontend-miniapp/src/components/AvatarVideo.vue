@@ -188,9 +188,12 @@ function handleUploadImage() {
       if (uploadResult.success || uploadResult.id) {
         const user = getUserId()
         await api.post('/portrait-library', { userId: user?.id, fileName: '肖像图片', fileUrl: uploadResult.fileUrl || uploadResult.url, type: 'image', isPublic: false })
+        uni.hideLoading()
         uni.showToast({ title: '上传成功', icon: 'success' }); loadData()
+      } else {
+        uni.hideLoading()
       }
-    } catch (err) { uni.showToast({ title: '上传失败', icon: 'none' }) } finally { uni.hideLoading() }
+    } catch (err) { uni.hideLoading(); uni.showToast({ title: '上传失败', icon: 'none' }) }
   }})
 }
 
@@ -202,9 +205,12 @@ function handleUploadPortrait() {
       if (uploadResult.success || uploadResult.id) {
         const user = getUserId()
         await api.post('/portrait-library', { userId: user?.id, fileName: '肖像视频', fileUrl: uploadResult.fileUrl || uploadResult.url, type: 'video', isPublic: false })
+        uni.hideLoading()
         uni.showToast({ title: '上传成功', icon: 'success' }); loadData()
+      } else {
+        uni.hideLoading()
       }
-    } catch (err) { uni.showToast({ title: '上传失败', icon: 'none' }) } finally { uni.hideLoading() }
+    } catch (err) { uni.hideLoading(); uni.showToast({ title: '上传失败', icon: 'none' }) }
   }})
 }
 
@@ -222,9 +228,12 @@ function handleUploadDubbing() {
       if (uploadResult.success || uploadResult.id) {
         const user = getUserId()
         await api.post('/dubbing-library', { userId: user?.id, fileName: file.name || '配音', fileUrl: uploadResult.fileUrl || uploadResult.url, isPublic: false })
+        uni.hideLoading()
         uni.showToast({ title: '上传成功', icon: 'success' }); loadData()
+      } else {
+        uni.hideLoading()
       }
-    } catch (err) { uni.showToast({ title: '上传失败', icon: 'none' }) } finally { uni.hideLoading() }
+    } catch (err) { uni.hideLoading(); uni.showToast({ title: '上传失败', icon: 'none' }) }
   }
   input.click()
   // #endif
@@ -237,9 +246,12 @@ function handleUploadDubbing() {
       if (uploadResult.success || uploadResult.id) {
         const user = getUserId()
         await api.post('/dubbing-library', { userId: user?.id, fileName: file.name || '配音', fileUrl: uploadResult.fileUrl || uploadResult.url, isPublic: false })
+        uni.hideLoading()
         uni.showToast({ title: '上传成功', icon: 'success' }); loadData()
+      } else {
+        uni.hideLoading()
       }
-    } catch (err) { uni.showToast({ title: '上传失败', icon: 'none' }) } finally { uni.hideLoading() }
+    } catch (err) { uni.hideLoading(); uni.showToast({ title: '上传失败', icon: 'none' }) }
   }})
   // #endif
 }

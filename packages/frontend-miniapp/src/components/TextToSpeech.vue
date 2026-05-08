@@ -161,12 +161,14 @@ function handleUploadVoice() {
       if (uploadResult.success || uploadResult.id) {
         const user = getUserId()
         await api.post('/voice-library', { userId: user?.id, fileName: file.name || '音色', fileUrl: uploadResult.fileUrl || uploadResult.url, fileSize: file.size, description: '', tags: '', isPublic: false })
+        uni.hideLoading()
         uni.showToast({ title: '上传成功', icon: 'success' })
         const result = await api.get('/voice-library', user?.id ? { userId: user.id } : {})
         voiceList.value = Array.isArray(result) ? result : (result?.list || result?.data || [])
+      } else {
+        uni.hideLoading()
       }
-    } catch (err) { uni.showToast({ title: '上传失败', icon: 'none' }) }
-    finally { uni.hideLoading() }
+    } catch (err) { uni.hideLoading(); uni.showToast({ title: '上传失败', icon: 'none' }) }
   }
   input.click()
   // #endif
@@ -181,12 +183,14 @@ function handleUploadVoice() {
         if (uploadResult.success || uploadResult.id) {
           const user = getUserId()
           await api.post('/voice-library', { userId: user?.id, fileName: file.name || '音色', fileUrl: uploadResult.fileUrl || uploadResult.url, fileSize: file.size, description: '', tags: '', isPublic: false })
+          uni.hideLoading()
           uni.showToast({ title: '上传成功', icon: 'success' })
           const result = await api.get('/voice-library', user?.id ? { userId: user.id } : {})
           voiceList.value = Array.isArray(result) ? result : (result?.list || result?.data || [])
+        } else {
+          uni.hideLoading()
         }
-      } catch (err) { uni.showToast({ title: '上传失败', icon: 'none' }) }
-      finally { uni.hideLoading() }
+      } catch (err) { uni.hideLoading(); uni.showToast({ title: '上传失败', icon: 'none' }) }
     }
   })
   // #endif
