@@ -560,8 +560,17 @@ async function generateImageToVideo(imageFileUrl, audioFileUrl, userId = null, e
   }
 
   if (!videoUrl) {
-    if (task) await taskService.failTask(task.id, '未找到输出视频文件');
-    throw new Error('未找到输出视频文件');
+    if (task) {
+      await task.update({ status: 'timeout', errorMessage: 'AI处理时间较长，任务仍在后台执行' });
+      taskService.broadcastUpdate(task.id, {
+        status: 'timeout',
+        progress: 50,
+        message: 'AI处理时间较长，任务转入后台继续执行，完成后将自动保存到作品库'
+      });
+      console.log('⏰ 图片生成视频任务超时，启动后台轮询...');
+      scheduleVideoPolling(task, result.taskId, runningHubAI, userId, 'image_to_video');
+    }
+    return { videoUrl: null, success: false, taskId: task ? task.id : null, timeout: true };
   }
 
   console.log('📥 下载视频文件到本地...');
@@ -755,8 +764,17 @@ async function generateVideoToVideo(videoFileUrl, audioFileUrl, userId = null, e
   }
 
   if (!outputVideoUrl) {
-    if (task) await taskService.failTask(task.id, '未找到输出视频文件');
-    throw new Error('未找到输出视频文件');
+    if (task) {
+      await task.update({ status: 'timeout', errorMessage: 'AI处理时间较长，任务仍在后台执行' });
+      taskService.broadcastUpdate(task.id, {
+        status: 'timeout',
+        progress: 50,
+        message: 'AI处理时间较长，任务转入后台继续执行，完成后将自动保存到作品库'
+      });
+      console.log('⏰ 视频生成视频任务超时，启动后台轮询...');
+      scheduleVideoPolling(task, result.taskId, runningHubAI, userId, 'video_to_video');
+    }
+    return { videoUrl: null, success: false, taskId: task ? task.id : null, timeout: true };
   }
 
   console.log('📥 下载视频文件到本地...');
@@ -915,6 +933,102 @@ function scheduleDubbingPolling(task, rhTaskId, runningHubAI, text, emotionDescr
   }, interval);
 
   dubbingPollingTimers.set(pollKey, timer);
+}
+
+const videoPollingTimers = new Map();
+
+function scheduleVideoPolling(task, rhTaskId, runningHubAI, userId, sourceType) {
+  const pollKey = task.id;
+  if (videoPollingTimers.has(pollKey)) return;
+
+  let attempts = 0;
+  const maxAttempts = 120;
+  const interval = 15000;
+
+  const timer = setInterval(async () => {
+    attempts++;
+    console.log(`🔄 后台轮询视频任务 [${attempts}/${maxAttempts}] taskId: ${task.id} rhTaskId: ${rhTaskId}`);
+
+    try {
+      const freshTask = await taskService.getTask(task.id);
+      if (freshTask && (freshTask.status === 'success' || freshTask.status === 'cancelled')) {
+        clearInterval(timer);
+        videoPollingTimers.delete(pollKey);
+        return;
+      }
+
+      const taskResultData = await runningHubAI.waitForTaskResult(rhTaskId, 5000, 5000);
+
+      if (taskResultData.success && taskResultData.outputs && taskResultData.outputs.length > 0) {
+        let videoUrl = '';
+        for (const output of taskResultData.outputs) {
+          const url = typeof output === 'string' ? output : (output?.url || output?.cos_url || output?.file_url || '');
+          if (url && isVideoUrl(url)) {
+            videoUrl = url;
+            break;
+          }
+        }
+        if (!videoUrl && taskResultData.outputs.length > 0) {
+          const firstOutput = taskResultData.outputs[0];
+          videoUrl = typeof firstOutput === 'string' ? firstOutput : (firstOutput?.url || firstOutput?.cos_url || firstOutput?.file_url || '');
+        }
+
+        if (videoUrl) {
+          clearInterval(timer);
+          videoPollingTimers.delete(pollKey);
+
+          console.log('📥 后台轮询获取到视频，开始下载...');
+          const fileExt = videoUrl.includes('.mov') ? '.mov' : '.mp4';
+          const fileName = `video_${Date.now()}${fileExt}`;
+          const downloadResult = await runningHubAI.downloadFile(videoUrl, fileService.getFilePath('works', fileName));
+
+          if (downloadResult.success) {
+            const fileUrl = fileService.getUrl('works', fileName);
+            const fileSize = fs.statSync(fileService.getFilePath('works', fileName)).size;
+
+            await workLibraryRepository.create({
+              userId: userId || '00000000-0000-0000-0000-000000000000',
+              title: `视频_${Date.now()}`,
+              videoPath: fileUrl,
+              size: fileSize,
+              status: 'completed',
+              sourceType: sourceType,
+              description: `${sourceType === 'image_to_video' ? '图片生视频' : '视频生视频'}`
+            });
+
+            await taskService.completeTask(task.id, fileUrl);
+            console.log('✅ 后台轮询视频完成，已保存到作品库:', fileUrl);
+          } else {
+            await taskService.failTask(task.id, '后台下载视频失败: ' + downloadResult.error);
+          }
+          return;
+        }
+      }
+
+      if (taskResultData.status === 'FAILED') {
+        clearInterval(timer);
+        videoPollingTimers.delete(pollKey);
+        await taskService.failTask(task.id, 'AI视频任务执行失败');
+        return;
+      }
+
+      if (attempts >= maxAttempts) {
+        clearInterval(timer);
+        videoPollingTimers.delete(pollKey);
+        await taskService.failTask(task.id, '后台轮询超时，AI任务未返回结果');
+        console.log('⏰ 后台轮询视频任务达到最大次数，停止');
+      }
+    } catch (err) {
+      console.error('❌ 后台轮询视频异常:', err.message);
+      if (attempts >= maxAttempts) {
+        clearInterval(timer);
+        videoPollingTimers.delete(pollKey);
+        await taskService.failTask(task.id, '后台轮询异常: ' + err.message);
+      }
+    }
+  }, interval);
+
+  videoPollingTimers.set(pollKey, timer);
 }
 
 module.exports = { generateAudio, generateDubbing, generateImageToVideo, generateVideoToVideo, listVoices, uploadVoice };

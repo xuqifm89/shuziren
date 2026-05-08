@@ -6,6 +6,7 @@
           <div v-if="taskStatus === 'processing'" class="loading-spinner"></div>
           <span v-else-if="taskStatus === 'success'" class="success-icon">✅</span>
           <span v-else-if="taskStatus === 'error'" class="error-icon">❌</span>
+          <span v-else-if="taskStatus === 'timeout'" class="timeout-icon">⏰</span>
           <span v-else class="pending-icon">⏳</span>
         </div>
         <h3 class="dialog-title">{{ dialogTitle }}</h3>
@@ -28,6 +29,10 @@
           <p>{{ errorMessage }}</p>
         </div>
 
+        <div v-if="taskStatus === 'timeout'" class="timeout-detail">
+          <p>AI处理时间较长，任务已转入后台继续执行。完成后将自动保存到对应的作品库中，您可以稍后在作品库中查看结果。</p>
+        </div>
+
         <div v-if="taskStatus === 'success' && successMessage" class="success-detail">
           <p>{{ successMessage }}</p>
         </div>
@@ -43,7 +48,7 @@
           {{ isCancelling ? '取消中...' : '取消任务' }}
         </button>
         <button
-          v-if="taskStatus === 'success' || taskStatus === 'error'"
+          v-if="taskStatus === 'success' || taskStatus === 'error' || taskStatus === 'timeout'"
           @click="handleClose"
           class="close-btn"
         >
@@ -87,7 +92,7 @@ const props = defineProps({
   status: {
     type: String,
     default: 'pending',
-    validator: (value) => ['pending', 'processing', 'success', 'error'].includes(value)
+    validator: (value) => ['pending', 'processing', 'success', 'error', 'timeout'].includes(value)
   },
   message: {
     type: String,
@@ -134,6 +139,8 @@ const dialogTitle = computed(() => {
       return `${props.taskName} - 完成`
     case 'error':
       return `${props.taskName} - 失败`
+    case 'timeout':
+      return `${props.taskName} - 后台执行中`
     default:
       return '任务状态'
   }
@@ -151,6 +158,8 @@ const dialogMessage = computed(() => {
       return `${props.taskName}已完成！`
     case 'error':
       return `${props.taskName}失败`
+    case 'timeout':
+      return `AI处理时间较长，任务已转入后台继续执行`
     default:
       return ''
   }
@@ -250,7 +259,7 @@ const handleClose = () => {
 }
 
 const handleOverlayClick = () => {
-  if (props.status !== 'processing') {
+  if (props.status === 'success' || props.status === 'error' || props.status === 'timeout' || props.status === 'pending') {
     handleClose()
   }
 }
@@ -324,6 +333,7 @@ const handleOverlayClick = () => {
 
 .success-icon { animation: bounceIn 0.5s ease-out; }
 .error-icon { animation: shake 0.5s ease-out; }
+.timeout-icon { animation: pulse 2s ease-in-out infinite; }
 .pending-icon { animation: pulse 2s ease-in-out infinite; }
 
 @keyframes bounceIn {
@@ -411,6 +421,21 @@ const handleOverlayClick = () => {
 
 .error-detail p {
   color: #f56c6c;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.timeout-detail {
+  background: rgba(230, 162, 60, 0.15);
+  border: 1px solid rgba(230, 162, 60, 0.3);
+  border-radius: 10px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.timeout-detail p {
+  color: #e6a23c;
   font-size: 14px;
   line-height: 1.6;
   margin: 0;
