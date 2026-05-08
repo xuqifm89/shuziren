@@ -77,12 +77,12 @@ const api = {
   voices: {
     list: (params) => api.get('/voice-library', params),
     delete: (id) => api.delete(`/voice-library/${id}`),
-    upload: (fp) => uploadFile('/voice-library/upload', fp, 'audio')
+    upload: (fp) => uploadFile('/voice-library/upload', fp, 'file')
   },
   avatars: {
     list: (params) => api.get('/portrait-library', params),
     delete: (id) => api.delete(`/portrait-library/${id}`),
-    upload: (fp) => uploadFile('/portrait-library/upload', fp, 'image', { type: 'image' })
+    upload: (fp) => uploadFile('/portrait-library/upload', fp, 'file', { type: 'image' })
   },
   dubbing: {
     list: (params) => api.get('/dubbing-library', params),

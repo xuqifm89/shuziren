@@ -157,7 +157,7 @@ function handleUploadVoice() {
     if (!file) return
     try {
       uni.showLoading({ title: '上传中...' })
-      const uploadResult = await uploadFile('/voice-library/upload', file, 'audio')
+      const uploadResult = await uploadFile('/voice-library/upload', file, 'file')
       if (uploadResult.success || uploadResult.id) {
         const user = getUserId()
         await api.post('/voice-library', { userId: user?.id, fileName: file.name || '音色', fileUrl: uploadResult.fileUrl || uploadResult.url, fileSize: file.size, description: '', tags: '', isPublic: false })
@@ -179,7 +179,7 @@ function handleUploadVoice() {
       const file = res.tempFiles[0]
       try {
         uni.showLoading({ title: '上传中...' })
-        const uploadResult = await uploadFile('/voice-library/upload', file.path, 'audio')
+        const uploadResult = await uploadFile('/voice-library/upload', file.path, 'file')
         if (uploadResult.success || uploadResult.id) {
           const user = getUserId()
           await api.post('/voice-library', { userId: user?.id, fileName: file.name || '音色', fileUrl: uploadResult.fileUrl || uploadResult.url, fileSize: file.size, description: '', tags: '', isPublic: false })

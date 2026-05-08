@@ -120,7 +120,7 @@ function handleChangeAvatar() {
         const uploadResult = await new Promise((resolve, reject) => {
           uni.uploadFile({
             url: `${api.getBaseUrl()}/users/${userInfo.value.id}/avatar`,
-            filePath: res.tempFilePaths[0], name: 'avatar',
+            filePath: res.tempFilePaths[0], name: 'file',
             header: { 'Authorization': `Bearer ${uni.getStorageSync('token')}` },
             success: resolve, fail: reject
           })

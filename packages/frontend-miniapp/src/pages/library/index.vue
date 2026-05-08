@@ -113,11 +113,11 @@ const activeItems = computed(() => {
 const apiMap = {
   voice: { list: api.library.voiceLibrary, delete: (id) => api.voices.delete(id), upload: (fp) => api.voices.upload(fp) },
   portrait: { list: api.library.portraitLibrary, delete: (id) => api.avatars.delete(id), upload: (fp) => api.avatars.upload(fp) },
-  dubbing: { list: api.library.dubbingLibrary, delete: (id) => api.dubbing.delete(id), upload: (fp) => uploadFile('/dubbing-library/upload', fp, 'audio') },
-  music: { list: api.library.musicLibrary, delete: (id) => api.delete(`/music-library/${id}`), upload: (fp) => uploadFile('/music-library/upload', fp, 'audio') },
+  dubbing: { list: api.library.dubbingLibrary, delete: (id) => api.dubbing.delete(id), upload: (fp) => uploadFile('/dubbing-library/upload', fp, 'file') },
+  music: { list: api.library.musicLibrary, delete: (id) => api.delete(`/music-library/${id}`), upload: (fp) => uploadFile('/music-library/upload', fp, 'file') },
   copy: { list: api.library.copyLibrary, delete: (id) => api.delete(`/copy-library/${id}`) },
   prompt: { list: api.library.promptLibrary, delete: (id) => api.delete(`/prompt-library/${id}`) },
-  work: { list: api.library.workLibrary, delete: (id) => api.video.delete(id), upload: (fp) => uploadFile('/work-library/upload', fp, 'video') }
+  work: { list: api.library.workLibrary, delete: (id) => api.video.delete(id), upload: (fp) => uploadFile('/work-library/upload', fp, 'file') }
 }
 
 onMounted(() => {

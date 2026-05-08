@@ -331,7 +331,7 @@ async function handleSave() {
       await api.put(`${config.value.apiPath}/${editItem.value.id}`, data)
     } else {
       if (tempFilePath.value) {
-        const uploadResult = await uploadFile(`${config.value.apiPath}/upload`, tempFilePath.value, config.value.type === 'portraitLibrary' ? 'image' : 'audio', data)
+        const uploadResult = await uploadFile(`${config.value.apiPath}/upload`, tempFilePath.value, 'file', data)
         if (uploadResult) Object.assign(data, uploadResult)
       }
       await api.post(config.value.apiPath, data)

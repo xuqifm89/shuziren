@@ -184,7 +184,7 @@ function handleUploadImage() {
     const file = res.tempFiles[0]
     try {
       uni.showLoading({ title: '上传中...' })
-      const uploadResult = await uploadFile('/portrait-library/upload', file.path, 'image', { type: 'image' })
+      const uploadResult = await uploadFile('/portrait-library/upload', file.path, 'file', { type: 'image' })
       if (uploadResult.success || uploadResult.id) {
         const user = getUserId()
         await api.post('/portrait-library', { userId: user?.id, fileName: '肖像图片', fileUrl: uploadResult.fileUrl || uploadResult.url, type: 'image', isPublic: false })
@@ -201,7 +201,7 @@ function handleUploadPortrait() {
   uni.chooseVideo({ sourceType: ['album', 'camera'], success: async (res) => {
     try {
       uni.showLoading({ title: '上传中...' })
-      const uploadResult = await uploadFile('/portrait-library/upload', res.tempFilePath, 'video', { type: 'video' })
+      const uploadResult = await uploadFile('/portrait-library/upload', res.tempFilePath, 'file', { type: 'video' })
       if (uploadResult.success || uploadResult.id) {
         const user = getUserId()
         await api.post('/portrait-library', { userId: user?.id, fileName: '肖像视频', fileUrl: uploadResult.fileUrl || uploadResult.url, type: 'video', isPublic: false })
@@ -224,7 +224,7 @@ function handleUploadDubbing() {
     if (!file) return
     try {
       uni.showLoading({ title: '上传中...' })
-      const uploadResult = await uploadFile('/dubbing-library/upload', file, 'audio')
+      const uploadResult = await uploadFile('/dubbing-library/upload', file, 'file')
       if (uploadResult.success || uploadResult.id) {
         const user = getUserId()
         await api.post('/dubbing-library', { userId: user?.id, fileName: file.name || '配音', fileUrl: uploadResult.fileUrl || uploadResult.url, isPublic: false })
@@ -242,7 +242,7 @@ function handleUploadDubbing() {
     const file = res.tempFiles[0]
     try {
       uni.showLoading({ title: '上传中...' })
-      const uploadResult = await uploadFile('/dubbing-library/upload', file.path, 'audio')
+      const uploadResult = await uploadFile('/dubbing-library/upload', file.path, 'file')
       if (uploadResult.success || uploadResult.id) {
         const user = getUserId()
         await api.post('/dubbing-library', { userId: user?.id, fileName: file.name || '配音', fileUrl: uploadResult.fileUrl || uploadResult.url, isPublic: false })
