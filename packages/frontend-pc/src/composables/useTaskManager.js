@@ -112,6 +112,7 @@ function initWebSocket() {
   }
 
   ws.on('task_update', (data) => {
+    console.log('[TaskManager] 收到task_update:', data.taskId, '当前任务:', state.serverTaskId, '状态:', data.status)
     if (state.serverTaskId && data.taskId === state.serverTaskId) {
       if (data.progress !== undefined) {
         state.progress = data.progress

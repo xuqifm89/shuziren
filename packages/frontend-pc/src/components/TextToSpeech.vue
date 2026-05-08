@@ -295,7 +295,12 @@ const pollTaskResult = async () => {
   if (!currentTaskId) return false
 
   try {
-    const response = await fetch(`/api/tasks/${currentTaskId}`, { headers: getAuthHeaders() })
+    const response = await fetch(`/api/tasks/${currentTaskId}?_t=${Date.now()}`, {
+      headers: {
+        ...getAuthHeaders(),
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
+      }
+    })
     const task = await response.json()
 
     if (task.status === 'success' && task.outputUrl) {

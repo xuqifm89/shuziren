@@ -1019,7 +1019,12 @@ const generateDubbing = async () => {
     if (data.success && data.taskId && !data.audioUrl) {
       const pollInterval = setInterval(async () => {
         try {
-          const pollRes = await fetch('/api/tasks/' + data.taskId, { headers: getAuthHeaders() })
+          const pollRes = await fetch('/api/tasks/' + data.taskId + '?_t=' + Date.now(), {
+            headers: {
+              ...getAuthHeaders(),
+              'Cache-Control': 'no-cache, no-store, must-revalidate'
+            }
+          })
           const pollData = await pollRes.json()
           if (pollData.status === 'success' && pollData.outputUrl) {
             clearInterval(pollInterval)
