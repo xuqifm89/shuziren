@@ -67,16 +67,29 @@ jobs:
             docker --version
             docker compose version
 
-            echo "3. 重新构建镜像..."
+            echo "3. 停止旧容器..."
+            docker compose -f docker/docker-compose.simple.yml down 2>/dev/null || true
+
+            echo "4. 重新构建镜像..."
             docker compose -f docker/docker-compose.simple.yml build --no-cache
 
-            echo "4. 重启服务..."
+            echo "5. 启动服务..."
             docker compose -f docker/docker-compose.simple.yml up -d --remove-orphans
 
-            echo "5. 等待服务就绪..."
+            echo "6. 配置宿主机 Nginx..."
+            if [ -f /etc/nginx/sites-available/shuziren ]; then
+              echo "   Nginx 配置已存在，更新..."
+            else
+              echo "   首次部署，创建 Nginx 配置..."
+            fi
+            cp docker/nginx/host-shuziren.conf /etc/nginx/sites-available/shuziren
+            ln -sf /etc/nginx/sites-available/shuziren /etc/nginx/sites-enabled/shuziren
+            nginx -t && nginx -s reload
+
+            echo "7. 等待服务就绪..."
             sleep 30
 
-            echo "6. 健康检查..."
+            echo "8. 健康检查..."
             for i in 1 2 3 4 5; do
               HEALTH=$(curl -sf http://localhost:3001/api/health 2>/dev/null | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4 || echo "failed")
               if [ "$HEALTH" = "ok" ]; then
@@ -93,7 +106,7 @@ jobs:
               docker logs shuziren-backend --tail 50 2>&1 || true
             fi
 
-            echo "7. 清理旧镜像..."
+            echo "9. 清理旧镜像..."
             docker image prune -f
 
             echo "========================================="

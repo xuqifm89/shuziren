@@ -55,20 +55,40 @@ if [ -d ".git" ]; then
 fi
 
 echo ""
-echo "4. 构建镜像..."
+echo "4. 停止旧容器..."
+docker compose -f "$COMPOSE_FILE" down 2>/dev/null || true
+
+echo ""
+echo "5. 构建镜像..."
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build
 
 echo ""
-echo "5. 启动服务..."
+echo "6. 启动服务..."
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
 
 echo ""
-echo "6. 等待服务就绪..."
+echo "7. 配置宿主机 Nginx..."
+if command -v nginx &> /dev/null; then
+  cp docker/nginx/host-shuziren.conf /etc/nginx/sites-available/shuziren
+  ln -sf /etc/nginx/sites-available/shuziren /etc/nginx/sites-enabled/shuziren
+  if nginx -t 2>/dev/null; then
+    nginx -s reload
+    echo "   Nginx 配置已更新并重载"
+  else
+    echo "   Nginx 配置测试失败，请手动检查"
+  fi
+else
+  echo "   宿主机 Nginx 未安装，跳过配置"
+  echo "   请安装: apt install -y nginx"
+fi
+
+echo ""
+echo "8. 等待服务就绪..."
 sleep 15
 
 echo ""
-echo "7. 健康检查..."
-HEALTH_STATUS=$(curl -sf http://localhost:${BACKEND_PORT:-3001}/api/health 2>/dev/null | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4 || echo "failed")
+echo "9. 健康检查..."
+HEALTH_STATUS=$(curl -sf http://localhost:3001/api/health 2>/dev/null | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4 || echo "failed")
 
 if [ "$HEALTH_STATUS" = "ok" ]; then
   echo "   后端服务正常"
@@ -78,7 +98,7 @@ else
 fi
 
 echo ""
-echo "8. 清理旧镜像..."
+echo "10. 清理旧镜像..."
 docker image prune -f
 
 echo ""
@@ -86,10 +106,17 @@ echo "========================================="
 echo "  部署完成!"
 echo "========================================="
 echo ""
-echo "  PC 前端:  http://localhost:${FRONTEND_PORT:-80}"
-echo "  管理后台:  http://localhost:${ADMIN_PORT:-8080}"
-echo "  H5 移动端: http://localhost:${H5_PORT:-8081}"
-echo "  API:      http://localhost:${BACKEND_PORT:-3001}"
+echo "  Docker 容器端口映射:"
+echo "    后端 API:   http://localhost:3001"
+echo "    PC 前端:    http://localhost:3080"
+echo "    管理后台:   http://localhost:3081"
+echo "    H5 移动端:  http://localhost:3082"
+echo ""
+echo "  通过宿主机 Nginx 访问 (如果已配置):"
+echo "    dsface.com       -> PC 前端"
+echo "    admin.dsface.com -> 管理后台"
+echo "    m.dsface.com     -> H5 移动端"
+echo "    IP:80            -> PC 前端 (默认)"
 echo ""
 echo "  常用命令:"
 echo "  查看日志: docker compose -f $COMPOSE_FILE logs -f"
