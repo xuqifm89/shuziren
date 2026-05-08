@@ -34,6 +34,18 @@ function initWebSocket() {
 
   const ws = getTaskWebSocket()
 
+  const userInfo = localStorage.getItem('userInfo')
+  if (userInfo) {
+    try {
+      const user = JSON.parse(userInfo)
+      if (user?.id) {
+        ws.authenticate(user.id)
+      }
+    } catch (e) {
+      console.error('[TaskManager] 解析用户信息失败:', e)
+    }
+  }
+
   ws.on('task_update', (data) => {
     if (state.serverTaskId && data.taskId === state.serverTaskId) {
       if (data.progress !== undefined) {
@@ -71,6 +83,15 @@ function initWebSocket() {
   })
 
   ws.on('connected', () => {
+    const userInfo = localStorage.getItem('userInfo')
+    if (userInfo) {
+      try {
+        const user = JSON.parse(userInfo)
+        if (user?.id) {
+          ws.authenticate(user.id)
+        }
+      } catch (e) {}
+    }
     if (state.serverTaskId) {
       ws.subscribeTask(state.serverTaskId)
     }
@@ -209,6 +230,17 @@ export function useTaskManager() {
     if (!ws.isConnected) {
       ws.connect()
     }
+
+    const userInfo = localStorage.getItem('userInfo')
+    if (userInfo) {
+      try {
+        const user = JSON.parse(userInfo)
+        if (user?.id && !ws.userId) {
+          ws.authenticate(user.id)
+        }
+      } catch (e) {}
+    }
+
     ws.subscribeTask(serverTaskId)
 
     saveState()
