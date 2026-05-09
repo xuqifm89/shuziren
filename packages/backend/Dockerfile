@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV CHROME_PATH=/usr/bin/chromium
 ENV DISPLAY=:99
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers
+ENV PYTHONPATH=/app/social-auto-upload:$PYTHONPATH
 
 RUN npx playwright install chromium --with-deps 2>/dev/null || true
 

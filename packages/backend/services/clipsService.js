@@ -75,8 +75,26 @@ function formatTime(seconds) {
 function getVideoDuration(videoPath) {
   return new Promise((resolve, reject) => {
     const ffmpegPath = getFfmpegPath();
+    if (!ffmpegPath) {
+      reject(new Error('ffmpeg未安装'));
+      return;
+    }
+    let resolvedPath = videoPath;
+    if (!path.isAbsolute(videoPath)) {
+      if (videoPath.startsWith('/assets/')) {
+        resolvedPath = path.join(process.env.LOCAL_MEDIA_PATH || path.join(__dirname, '..', 'assets'), videoPath.replace('/assets/', ''));
+      } else if (videoPath.startsWith('/output/')) {
+        resolvedPath = path.join(__dirname, '..', 'output', videoPath.replace('/output/', ''));
+      } else if (!fs.existsSync(videoPath)) {
+        resolvedPath = path.join(__dirname, '..', videoPath);
+      }
+    }
+    if (!fs.existsSync(resolvedPath)) {
+      reject(new Error('视频文件不存在: ' + resolvedPath));
+      return;
+    }
     const { execFile } = require('child_process');
-    execFile(ffmpegPath, ['-i', videoPath], (err, stdout, stderr) => {
+    execFile(ffmpegPath, ['-i', resolvedPath], (err, stdout, stderr) => {
       const match = stderr.match(/Duration:\s*(\d+):(\d+):(\d+\.\d+)/);
       if (match) {
         const duration = parseInt(match[1]) * 3600 + parseInt(match[2]) * 60 + parseFloat(match[3]);
