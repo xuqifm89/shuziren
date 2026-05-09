@@ -52,6 +52,7 @@ function getSauSpawnArgs(cliArgs) {
   const env = { ...process.env }
   if (process.env.CHROME_PATH) env.CHROME_PATH = process.env.CHROME_PATH
   if (process.env.PLAYWRIGHT_BROWSERS_PATH) env.PLAYWRIGHT_BROWSERS_PATH = process.env.PLAYWRIGHT_BROWSERS_PATH
+  env.PYTHONPATH = SAU_PROJECT_DIR + (process.env.PYTHONPATH ? ':' + process.env.PYTHONPATH : '')
 
   const sauCmd = findSauCommand();
   const isUv = sauCmd.endsWith('uv') || sauCmd === 'uv';

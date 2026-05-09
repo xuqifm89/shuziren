@@ -80,14 +80,13 @@ function getVideoDuration(videoPath) {
       return;
     }
     let resolvedPath = videoPath;
-    if (!path.isAbsolute(videoPath)) {
-      if (videoPath.startsWith('/assets/')) {
-        resolvedPath = path.join(process.env.LOCAL_MEDIA_PATH || path.join(__dirname, '..', 'assets'), videoPath.replace('/assets/', ''));
-      } else if (videoPath.startsWith('/output/')) {
-        resolvedPath = path.join(__dirname, '..', 'output', videoPath.replace('/output/', ''));
-      } else if (!fs.existsSync(videoPath)) {
-        resolvedPath = path.join(__dirname, '..', videoPath);
-      }
+    const mediaBase = process.env.LOCAL_MEDIA_PATH || path.join(__dirname, '..', 'assets');
+    if (videoPath.startsWith('/assets/')) {
+      resolvedPath = path.join(mediaBase, videoPath.replace('/assets/', ''));
+    } else if (videoPath.startsWith('/output/')) {
+      resolvedPath = path.join(__dirname, '..', 'output', videoPath.replace('/output/', ''));
+    } else if (!path.isAbsolute(videoPath) && !fs.existsSync(videoPath)) {
+      resolvedPath = path.join(__dirname, '..', videoPath);
     }
     if (!fs.existsSync(resolvedPath)) {
       reject(new Error('视频文件不存在: ' + resolvedPath));
