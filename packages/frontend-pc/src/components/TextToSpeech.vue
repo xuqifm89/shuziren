@@ -312,6 +312,7 @@ const pollTaskResult = async () => {
       stopPolling()
       clearPendingTask()
       emit('audio-generated', audioPath.value)
+      taskManager.completeTask('配音生成完成')
       return true
     }
 
@@ -319,6 +320,7 @@ const pollTaskResult = async () => {
       stopPolling()
       clearPendingTask()
       error.value = '⏰ AI处理时间较长，任务已转入后台执行，完成后将自动保存到配音库，请稍后在配音库中查看'
+      taskManager.failTask('AI处理时间较长，任务已转入后台执行')
       return true
     }
 
@@ -326,6 +328,7 @@ const pollTaskResult = async () => {
       error.value = task.errorMessage || '配音生成失败'
       stopPolling()
       clearPendingTask()
+      taskManager.failTask(task.errorMessage || '配音生成失败')
       return true
     }
 

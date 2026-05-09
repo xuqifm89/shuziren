@@ -1031,14 +1031,17 @@ const generateDubbing = async () => {
             generatedDubbingUrl.value = '' + pollData.outputUrl
             emit('audio-generated', generatedDubbingUrl.value)
             isGeneratingDubbing.value = false
+            taskManager.completeTask('配音生成完成')
           } else if (pollData.status === 'timeout') {
             clearInterval(pollInterval)
             error.value = '⏰ AI处理时间较长，任务已转入后台执行，完成后将自动保存到配音库'
             isGeneratingDubbing.value = false
+            taskManager.failTask('AI处理时间较长，任务已转入后台执行')
           } else if (pollData.status === 'error') {
             clearInterval(pollInterval)
             error.value = pollData.errorMessage || '配音生成失败'
             isGeneratingDubbing.value = false
+            taskManager.failTask(pollData.errorMessage || '配音生成失败')
           }
         } catch (e) {
           clearInterval(pollInterval)
