@@ -24,27 +24,25 @@ async function isSauAvailable() {
 }
 
 function findSauCommand() {
-  if (_sauCommand) return _sauCommand;
-
   try {
-    const result = execSync('which sau', { encoding: 'utf-8', stdio: 'pipe' }).trim();
+    const result = execSync('which python3', { encoding: 'utf-8', stdio: 'pipe' }).trim();
     if (result && fs.existsSync(result)) {
       _sauCommand = result;
-      console.log(`✅ Found sau command: ${result}`);
+      console.log(`✅ Using python3 for sau: ${result}`);
       return result;
     }
   } catch (e) {}
 
   try {
-    const result = execSync('which uv', { encoding: 'utf-8', stdio: 'pipe' }).trim();
+    const result = execSync('which python', { encoding: 'utf-8', stdio: 'pipe' }).trim();
     if (result && fs.existsSync(result)) {
       _sauCommand = result;
-      console.log(`✅ Using uv for sau: ${result}`);
+      console.log(`✅ Using python for sau: ${result}`);
       return result;
     }
   } catch (e) {}
 
-  _sauCommand = 'sau';
+  _sauCommand = 'python3';
   return _sauCommand;
 }
 
@@ -54,20 +52,11 @@ function getSauSpawnArgs(cliArgs) {
   if (process.env.PLAYWRIGHT_BROWSERS_PATH) env.PLAYWRIGHT_BROWSERS_PATH = process.env.PLAYWRIGHT_BROWSERS_PATH
   env.PYTHONPATH = SAU_PROJECT_DIR + (process.env.PYTHONPATH ? ':' + process.env.PYTHONPATH : '')
 
-  const sauCmd = findSauCommand();
-  const isUv = sauCmd.endsWith('uv') || sauCmd === 'uv';
-
-  if (isUv) {
-    return {
-      command: sauCmd,
-      args: ['run', 'sau', ...cliArgs],
-      options: { cwd: SAU_PROJECT_DIR, timeout: 600000, env }
-    };
-  }
+  const pythonCmd = findSauCommand();
 
   return {
-    command: sauCmd,
-    args: cliArgs,
+    command: pythonCmd,
+    args: ['-m', 'sau_cli', ...cliArgs],
     options: { cwd: SAU_PROJECT_DIR, timeout: 600000, env }
   };
 }
