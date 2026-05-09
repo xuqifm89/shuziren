@@ -102,10 +102,49 @@ async function generateVideo(audioPath, avatarId, modelType = 'cloud', userId = 
     }
 
     if (task) await taskService.updateRunningHubTaskId(task.id, result.taskId);
+    if (task) await taskService.updateProgress(task.id, 40, 'AI模型处理中...');
 
-    const taskResult = await runningHubAI.waitForCompletion(result.taskId, 300000);
-    if (!taskResult.success || taskResult.status === 'FAILED') {
-      throw new Error(taskResult.error || '任务执行失败');
+    const taskResult = await runningHubAI.waitForCompletionWithWebSocket(result.taskId, result.netWssUrl, {
+      timeout: 1800000,
+      onProgress: async (progress, message) => {
+        if (task) await taskService.updateProgress(task.id, 40 + Math.round(progress * 0.4), message);
+      }
+    });
+
+    console.log('✅ WebSocket阶段结束, success:', taskResult.success, 'status:', taskResult.status);
+
+    let videoUrl = '';
+
+    if (taskResult.success && taskResult.outputs && taskResult.outputs.length > 0) {
+      for (const output of taskResult.outputs) {
+        const url = typeof output === 'string' ? output : (output?.url || output?.cos_url || output?.file_url || '');
+        if (url) {
+          videoUrl = url;
+          console.log('✅ 从WebSocket找到输出视频 URL:', videoUrl);
+          break;
+        }
+      }
+    }
+
+    if (!videoUrl) {
+      console.log('📡 WebSocket未获取到视频URL，通过REST API查询任务结果...');
+      if (task) await taskService.updateProgress(task.id, 70, '正在获取生成结果...');
+      const taskResultData = await runningHubAI.waitForTaskResult(result.taskId);
+      if (taskResultData.success && taskResultData.outputs && taskResultData.outputs.length > 0) {
+        for (const output of taskResultData.outputs) {
+          const url = typeof output === 'string' ? output : (output?.url || output?.cos_url || output?.file_url || '');
+          if (url) {
+            videoUrl = url;
+            console.log('✅ 从REST API找到输出视频 URL:', videoUrl);
+            break;
+          }
+        }
+      }
+    }
+
+    if (!videoUrl) {
+      if (task) await taskService.failTask(task.id, '视频生成未获取到输出结果');
+      throw new Error('视频生成未获取到输出结果');
     }
 
     const outputDir = './output';
@@ -114,15 +153,9 @@ async function generateVideo(audioPath, avatarId, modelType = 'cloud', userId = 
     }
 
     let videoPath = '';
-    if (taskResult.outputs && taskResult.outputs.length > 0) {
-      for (const output of taskResult.outputs) {
-        if (output.type === 'file' && output.url) {
-          videoPath = `${outputDir}/video_${Date.now()}.mp4`;
-          await runningHubAI.downloadFile(output.url, videoPath);
-          break;
-        }
-      }
-    }
+    if (task) await taskService.updateProgress(task.id, 85, '正在下载视频文件...');
+    videoPath = `${outputDir}/video_${Date.now()}.mp4`;
+    await runningHubAI.downloadFile(videoUrl, videoPath);
 
     // 更新日志 - 成功
     if (apiLog) {

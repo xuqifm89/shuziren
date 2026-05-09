@@ -314,12 +314,26 @@ onMounted(() => {
 
   taskManagerUnsubscribe = taskManager.subscribe((taskState) => {
     if (taskState.status === 'success' && taskState.outputUrl) {
-      videoPath.value = '' + taskState.outputUrl
-      isGenerating.value = false
+      if (taskState.taskType === 'dubbing_generation' || taskManager.state.taskType === 'dubbing_generation') {
+        generatedDubbingUrl.value = '' + taskState.outputUrl
+        emit('audio-generated', taskState.outputUrl)
+        isGeneratingDubbing.value = false
+      } else {
+        videoPath.value = '' + taskState.outputUrl
+        isGenerating.value = false
+        isGeneratingVideo.value = false
+        emit('video-generated', taskState.outputUrl)
+      }
     }
     if (taskState.status === 'error') {
-      error.value = taskState.errorMessage || '视频生成失败'
+      error.value = taskState.errorMessage || '生成失败'
       isGenerating.value = false
+      isGeneratingVideo.value = false
+      isGeneratingDubbing.value = false
+    }
+    if (taskState.status === 'timeout') {
+      error.value = taskState.progressMessage || 'AI处理时间较长，任务已转入后台执行'
+      isGeneratingDubbing.value = false
     }
   })
 })
@@ -1008,6 +1022,10 @@ const generateDubbing = async () => {
     return
   }
 
+  taskManager.startTask('dubbing_generation', 'AI配音生成', {
+    soundId: selectedSound.value.id
+  })
+
   try {
     const response = await fetch('/api/audio/generate-dubbing', {
       method: 'POST',
@@ -1035,48 +1053,19 @@ const generateDubbing = async () => {
 
     console.log('🎤 配音生成结果:', data)
     if (data.success && data.taskId && !data.audioUrl) {
-      const pollInterval = setInterval(async () => {
-        try {
-          const pollRes = await fetch('/api/tasks/' + data.taskId + '?_t=' + Date.now(), {
-            headers: {
-              ...getAuthHeaders(),
-              'Cache-Control': 'no-cache, no-store, must-revalidate'
-            }
-          })
-          const pollData = await pollRes.json()
-          if (pollData.status === 'success' && pollData.outputUrl) {
-            clearInterval(pollInterval)
-            generatedDubbingUrl.value = '' + pollData.outputUrl
-            emit('audio-generated', generatedDubbingUrl.value)
-            isGeneratingDubbing.value = false
-            taskManager.completeTask('配音生成完成')
-          } else if (pollData.status === 'timeout') {
-            clearInterval(pollInterval)
-            error.value = '⏰ AI处理时间较长，任务已转入后台执行，完成后将自动保存到配音库'
-            isGeneratingDubbing.value = false
-            taskManager.failTask('AI处理时间较长，任务已转入后台执行')
-          } else if (pollData.status === 'error') {
-            clearInterval(pollInterval)
-            error.value = pollData.errorMessage || '配音生成失败'
-            isGeneratingDubbing.value = false
-            taskManager.failTask(pollData.errorMessage || '配音生成失败')
-          }
-        } catch (e) {
-          clearInterval(pollInterval)
-          error.value = '轮询任务状态失败'
-          isGeneratingDubbing.value = false
-        }
-      }, 3000)
-      setTimeout(() => { clearInterval(pollInterval); isGeneratingDubbing.value = false }, 600000)
+      taskManager.setServerTaskId(data.taskId)
     } else if (data.success && data.audioUrl) {
       generatedDubbingUrl.value = '' + data.audioUrl
       emit('audio-generated', generatedDubbingUrl.value)
+      taskManager.completeTask('配音生成完成')
     } else {
       error.value = getFriendlyErrorMessage(data.error)
+      taskManager.failTask(getFriendlyErrorMessage(data.error))
     }
   } catch (err) {
     console.error('❌ 生成配音失败:', err)
     error.value = '网络错误，请检查后端服务是否运行'
+    taskManager.failTask('网络错误')
   } finally {
     isGeneratingDubbing.value = false
   }
@@ -1141,7 +1130,6 @@ const generateVideo = async () => {
         }
 
         if (data.success && data.taskId) {
-          startVideoPolling(data.taskId)
           return { success: true, taskId: data.taskId }
         } else if (data.success && data.videoUrl) {
           videoPath.value = '' + data.videoUrl
@@ -1163,7 +1151,6 @@ const generateVideo = async () => {
 
         const data = await response.json()
         if (data.success && data.taskId) {
-          startVideoPolling(data.taskId)
           return { success: true, taskId: data.taskId }
         } else if (data.videoPath) {
           videoPath.value = '/' + data.videoPath
@@ -1184,41 +1171,6 @@ const regenerateVideo = () => {
   console.log('🔄 regenerateVideo')
   videoPath.value = ''
   generateVideo()
-}
-
-let videoPollTimer = null
-
-const startVideoPolling = (taskId) => {
-  if (videoPollTimer) clearInterval(videoPollTimer)
-
-  videoPollTimer = setInterval(async () => {
-    try {
-      const res = await fetch(`/api/tasks/${taskId}?_t=${Date.now()}`, {
-        headers: {
-          ...getAuthHeaders(),
-          'Cache-Control': 'no-cache, no-store, must-revalidate'
-        }
-      })
-      if (!res.ok) return
-      const task = await res.json()
-
-      if ((task.status === 'success' || task.outputUrl) && task.status !== 'error') {
-        clearInterval(videoPollTimer)
-        videoPollTimer = null
-        videoPath.value = '' + task.outputUrl
-        isGenerating.value = false
-        isGeneratingVideo.value = false
-        emit('video-generated', task.outputUrl)
-        taskManager.completeTask('视频生成完成')
-      } else if (task.status === 'error') {
-        clearInterval(videoPollTimer)
-        videoPollTimer = null
-        error.value = task.errorMessage || '视频生成失败'
-        isGenerating.value = false
-        taskManager.failTask(task.errorMessage || '视频生成失败')
-      }
-    } catch (e) {}
-  }, 5000)
 }
 
 const confirmVideo = () => {

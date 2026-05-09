@@ -33,6 +33,7 @@ class TaskService {
     this.broadcastUpdate(taskId, {
       status: 'processing',
       progress: task.progress,
+      taskType: task.taskType,
       message: message || this.getProgressMessage(task.taskType, progress)
     });
 
@@ -57,6 +58,7 @@ class TaskService {
       status: 'success',
       progress: 100,
       outputUrl: task.outputUrl,
+      taskType: task.taskType,
       message: this.getCompletionMessage(task.taskType)
     });
 
@@ -78,6 +80,7 @@ class TaskService {
 
     this.broadcastUpdate(taskId, {
       status: 'error',
+      taskType: task.taskType,
       errorMessage: task.errorMessage,
       message: '任务执行失败'
     });

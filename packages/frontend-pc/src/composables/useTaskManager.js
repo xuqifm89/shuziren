@@ -120,6 +120,9 @@ function initWebSocket() {
       if (data.message) {
         state.progressMessage = data.message
       }
+      if (data.taskType) {
+        state.taskType = data.taskType
+      }
       if (data.status === 'processing' && state.status !== 'processing') {
         state.status = 'processing'
       }
