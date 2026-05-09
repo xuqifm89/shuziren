@@ -508,8 +508,14 @@ function nextCoverFrame() {
 }
 function refreshCoverFrames() { extractFramesFor('cover') }
 
+function isLocalPath(p) {
+  if (!p) return false
+  return p.startsWith('blob:') || p.startsWith('wxfile://') || p.startsWith('http://tmp/') || (!p.startsWith('/') && !p.startsWith('http'))
+}
+
 async function extractFramesFor(target) {
   if (!props.videoPath) return
+  if (isLocalPath(props.videoPath)) return
   extractingFrames.value = true
   try {
     const result = await api.post('/clips/extract-frames', { videoPath: props.videoPath, count: 5 })
