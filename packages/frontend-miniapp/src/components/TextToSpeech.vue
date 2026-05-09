@@ -201,7 +201,7 @@ async function handleGenerate() {
     uni.showToast({ title: '请输入文案并选择音色', icon: 'none' })
     return
   }
-  emit('start-task', '配音生成', async () => {
+  emit('start-task', '配音生成', async (taskManager) => {
     const user = getUserId()
     const result = await api.post('/audio/generate-dubbing', {
       voiceFileUrl: selectedVoice.value.fileUrl || selectedVoice.value.filePath,
@@ -210,7 +210,20 @@ async function handleGenerate() {
       userId: user?.id
     })
     if (result.success && result.taskId && !result.audioUrl) {
-      return { success: true, taskId: result.taskId, message: '配音任务已提交，请稍后查看结果' }
+      const taskResult = await taskManager.waitForTask(result.taskId, { timeout: 30 * 60 * 1000 })
+      if (taskResult.success && taskResult.outputUrl) {
+        audioPath.value = taskResult.outputUrl
+        isPlaying.value = false
+        currentTime.value = 0
+        duration.value = 0
+        if (innerAudioCtx) { innerAudioCtx.stop(); innerAudioCtx.destroy(); innerAudioCtx = null }
+        emit('audio-generated', taskResult.outputUrl)
+        return { success: true, message: '配音生成成功' }
+      }
+      if (taskResult.isTimeout) {
+        return { success: true, message: '配音任务已转入后台执行，完成后将自动保存' }
+      }
+      return { success: false, message: taskResult.error || '配音生成失败' }
     }
     const url = result.audioUrl || result.data?.audioUrl || result.url || result.fileUrl || ''
     if (url) {

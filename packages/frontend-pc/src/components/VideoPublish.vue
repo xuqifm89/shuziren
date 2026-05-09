@@ -663,51 +663,58 @@ async function handleLoginAccount(account) {
   try {
     console.log(`🔐 开始登录 ${account.platform} 账号: ${account.accountName}`)
 
-    // 显示二维码对话框
     showQrcodeDialog.value = true
     qrcodeUrl.value = ''
     ElMessage.info('正在启动登录，请稍等...')
 
-    // 1. 发起登录请求（后台执行）
-    const loginPromise = authAxios.post(`${API_BASE}/accounts/${account.id}/login`, {}, {
-      timeout: 180000
+    await authAxios.post(`${API_BASE}/accounts/${account.id}/login`, {}, {
+      timeout: 30000
     })
 
-    // 2. 轮询二维码图片（每2秒检查一次）
     let pollCount = 0
-    const maxPolls = 60  // 最多轮询2分钟
+    const maxPolls = 90
 
-    loginPollingTimer.value = setInterval(async () => {
-      pollCount++
-      console.log(`🔄 检查二维码 [${pollCount}/${maxPolls}]...`)
+    await new Promise((resolve, reject) => {
+      loginPollingTimer.value = setInterval(async () => {
+        pollCount++
+        console.log(`🔄 检查登录状态 [${pollCount}/${maxPolls}]...`)
 
-      try {
-        const { data: qrcodeData } = await authAxios.get(`${API_BASE}/accounts/${account.id}/qrcode`)
+        try {
+          const { data } = await authAxios.get(`${API_BASE}/accounts/${account.id}/login-status`)
 
-        if (qrcodeData.success && qrcodeData.qrcodeUrl) {
-          qrcodeUrl.value = `${qrcodeData.qrcodeUrl}`
-          console.log('✅ 二维码已加载:', qrcodeData.filename)
+          if (data.qrcodeUrl && !qrcodeUrl.value) {
+            qrcodeUrl.value = data.qrcodeUrl
+            console.log('✅ 二维码已加载:', data.qrcodeUrl)
+          }
+
+          if (data.status === 'success') {
+            clearInterval(loginPollingTimer.value)
+            loginPollingTimer.value = null
+            console.log('✅ 登录成功:', data)
+            resolve()
+          } else if (data.status === 'failed') {
+            clearInterval(loginPollingTimer.value)
+            loginPollingTimer.value = null
+            reject(new Error(data.output || '登录失败'))
+          }
+        } catch (err) {
+          if (err.message !== '登录失败' && !err.message.includes('登录失败')) {
+            console.warn('⚠️ 轮询登录状态异常:', err.message)
+          } else {
+            clearInterval(loginPollingTimer.value)
+            loginPollingTimer.value = null
+            reject(err)
+          }
         }
-      } catch (err) {
-        // 二维码还未生成，继续等待...
-      }
 
-      if (pollCount >= maxPolls) {
-        clearInterval(loginPollingTimer.value)
-        console.warn('⏰ 二维码轮询超时')
-      }
-    }, 2000)
+        if (pollCount >= maxPolls) {
+          clearInterval(loginPollingTimer.value)
+          loginPollingTimer.value = null
+          reject(new Error('登录超时（3分钟），请重试'))
+        }
+      }, 2000)
+    })
 
-    // 3. 等待登录完成
-    const { data } = await loginPromise
-
-    // 清理轮询
-    if (loginPollingTimer.value) {
-      clearInterval(loginPollingTimer.value)
-      loginPollingTimer.value = null
-    }
-
-    console.log('✅ 登录成功:', data)
     showQrcodeDialog.value = false
     ElMessage.success(`${account.accountName} 登录成功`)
     await fetchAccounts()
@@ -719,18 +726,17 @@ async function handleLoginAccount(account) {
       response: err.response?.data
     })
 
-    // 清理轮询
     if (loginPollingTimer.value) {
       clearInterval(loginPollingTimer.value)
       loginPollingTimer.value = null
     }
 
-    if (err.code === 'ECONNABORTED') {
-      ElMessage.error('登录超时（3分钟），请重试')
+    if (err.message.includes('登录超时')) {
+      ElMessage.error(err.message)
     } else if (err.response?.status === 500) {
       ElMessage.error(`登录失败: ${err.response.data?.error || '服务器错误'}`)
     } else {
-      ElMessage.error(err.response?.data?.error || '登录失败，请查看控制台')
+      ElMessage.error(err.response?.data?.error || err.message || '登录失败，请查看控制台')
     }
 
     showQrcodeDialog.value = false

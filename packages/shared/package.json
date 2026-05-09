@@ -1,0 +1,8 @@
+{
+  "name": "@shuziren/shared",
+  "version": "1.0.0",
+  "description": "拾光引擎 - 共享任务流程管理",
+  "private": true,
+  "main": "src/index.js",
+  "type": "module"
+}

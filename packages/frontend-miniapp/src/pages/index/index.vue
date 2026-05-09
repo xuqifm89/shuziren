@@ -300,7 +300,7 @@ function handleVideoGenerated(videoPath) { clipVideo.value = videoPath; publishV
 
 function handleStartTask(taskName, asyncFn) {
   taskManager.startTask(taskName, taskName, null)
-  taskManager.executeAfterConfirm(asyncFn)
+  taskManager.executeAfterConfirm(() => asyncFn(taskManager))
 }
 
 async function fetchVideoLibrary() {

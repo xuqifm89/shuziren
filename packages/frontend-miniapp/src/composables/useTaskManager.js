@@ -1,11 +1,15 @@
-const TASK_STATE_KEY = 'ai_task_state'
+import { createTaskFlow } from '../../../shared/src/taskFlow.js'
+import { createMiniappAdapter } from '../../../shared/src/adapters/miniapp.js'
+
+const adapter = createMiniappAdapter()
+const taskFlow = createTaskFlow(adapter)
 
 class TaskManager {
   constructor() {
     this._state = {
       isActive: false, taskType: '', taskName: '', status: 'pending',
       progress: 0, errorMessage: '', successMessage: '', isCancelling: false,
-      progressMessage: '', taskData: null
+      progressMessage: '', taskData: null, outputUrl: ''
     }
     this._listeners = []
     this._confirmCallback = null
@@ -16,6 +20,21 @@ class TaskManager {
       '正在连接服务器...', '任务已加入队列...', 'AI模型准备中...',
       '内容生成中...', '请耐心等待...', '即将完成...'
     ]
+
+    taskFlow.subscribe((newState) => {
+      this._setState({
+        isActive: newState.isActive,
+        taskType: newState.taskType,
+        taskName: newState.taskName,
+        status: newState.status,
+        progress: newState.progress,
+        errorMessage: newState.errorMessage,
+        successMessage: newState.successMessage,
+        isCancelling: newState.isCancelling,
+        progressMessage: newState.progressMessage,
+        outputUrl: newState.outputUrl
+      })
+    })
   }
 
   subscribe(listener) { this._listeners.push(listener) }
@@ -27,23 +46,16 @@ class TaskManager {
     this._stopProgressAnimation()
     this._confirmCallback = null
     this._hintIndex = 0
-    this._setState({
-      isActive: true, taskType, taskName, status: 'pending', progress: 0,
-      errorMessage: '', successMessage: '', isCancelling: false,
-      progressMessage: '', taskData: data || null
-    })
-    this._saveState()
+    taskFlow.startTask(taskType, taskName, data)
+    this._startProgressAnimation()
   }
 
-  executeAfterConfirm(fn) {
-    this._confirmCallback = fn
-  }
+  executeAfterConfirm(fn) { this._confirmCallback = fn }
 
   confirmTask() {
     if (this._state.status !== 'pending') return
     this._setState({ status: 'processing', progress: 0, progressMessage: this._hints[0] })
-    this._startProgressAnimation()
-    this._saveState()
+    taskFlow.confirmTask()
     if (this._confirmCallback) {
       Promise.resolve(this._confirmCallback()).then((result) => {
         if (result && result.success) {
@@ -57,35 +69,23 @@ class TaskManager {
     }
   }
 
-  updateProgress(progress, message) {
-    const update = { progress }
-    if (message) update.progressMessage = message
-    this._setState(update)
-    this._saveState()
-  }
+  updateProgress(progress, message) { taskFlow.updateProgress(progress, message) }
 
   succeed(message) {
     this._stopProgressAnimation()
     this._setState({ status: 'success', successMessage: message || '处理完成', progress: 100, progressMessage: '' })
-    this._saveState()
   }
 
   fail(message) {
     this._stopProgressAnimation()
     this._setState({ status: 'error', errorMessage: message || '处理失败', progressMessage: '' })
-    this._saveState()
   }
 
-  async cancelTask() {
-    this._stopProgressAnimation()
-    this._setState({ status: 'error', errorMessage: '任务已取消', isCancelling: false, isActive: false })
-    uni.removeStorageSync(TASK_STATE_KEY)
-  }
+  async cancelTask() { return taskFlow.cancelTask() }
 
   closeDialog() {
     this._stopProgressAnimation()
-    this._setState({ isActive: false })
-    uni.removeStorageSync(TASK_STATE_KEY)
+    taskFlow.clearState()
   }
 
   _startProgressAnimation() {
@@ -96,7 +96,6 @@ class TaskManager {
         this._setState({ progress: newProgress })
       }
     }, 800)
-
     this._hintInterval = setInterval(() => {
       this._hintIndex = (this._hintIndex + 1) % this._hints.length
       this._setState({ progressMessage: this._hints[this._hintIndex] })
@@ -109,12 +108,12 @@ class TaskManager {
   }
 
   _saveState() {
-    try { uni.setStorageSync(TASK_STATE_KEY, JSON.stringify(this._state)) } catch (e) {}
+    try { uni.setStorageSync('ai_task_state', JSON.stringify(this._state)) } catch (e) {}
   }
 
   restoreTask() {
     try {
-      const saved = uni.getStorageSync(TASK_STATE_KEY)
+      const saved = uni.getStorageSync('ai_task_state')
       if (saved) {
         const state = typeof saved === 'string' ? JSON.parse(saved) : saved
         if (state.isActive) {
@@ -129,7 +128,7 @@ class TaskManager {
           }
           if (state.status === 'pending') {
             this._setState({ isActive: false })
-            uni.removeStorageSync(TASK_STATE_KEY)
+            uni.removeStorageSync('ai_task_state')
             return false
           }
         }
@@ -137,8 +136,19 @@ class TaskManager {
     } catch (e) {}
     return false
   }
+
+  submitTask(endpoint, payload, options = {}) {
+    return taskFlow.submitTask(endpoint, payload, options)
+  }
+
+  waitForTask(taskId, options = {}) {
+    return taskFlow.waitForTask(taskId, options)
+  }
 }
 
+let instance = null
+
 export function useTaskManager() {
-  return new TaskManager()
+  if (!instance) instance = new TaskManager()
+  return instance
 }

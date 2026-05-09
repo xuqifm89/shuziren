@@ -259,43 +259,28 @@ function handleUploadDubbing() {
 async function handleGenerate() {
   if (!selectedAvatar.value || !selectedDubbing.value) { uni.showToast({ title: '请选择肖像和配音', icon: 'none' }); return }
   const taskName = props.useVideoDriver ? '视频驱动生成' : '图片驱动生成'
-  emit('start-task', taskName, async () => {
+  emit('start-task', taskName, async (taskManager) => {
     const user = getUserId()
     const endpoint = props.useVideoDriver ? '/audio/generate-video-to-video' : '/audio/generate-image-to-video'
     const payload = props.useVideoDriver
       ? { videoFileUrl: selectedAvatar.value.fileUrl || selectedAvatar.value.filePath, audioFileUrl: selectedDubbing.value.fileUrl || selectedDubbing.value.filePath, userId: user?.id }
       : { imageFileUrl: selectedAvatar.value.fileUrl || selectedAvatar.value.filePath, audioFileUrl: selectedDubbing.value.fileUrl || selectedDubbing.value.filePath, userId: user?.id }
     const submitResult = await api.post(endpoint, payload)
-    const taskId = submitResult.taskId
-    if (!taskId) {
-      const url = submitResult.videoUrl || submitResult.data?.videoUrl || submitResult.url || submitResult.fileUrl || ''
-      if (url) { videoPath.value = url; emit('video-generated', url); return { success: true, message: '视频生成成功' } }
-      return { success: false, message: '提交任务失败' }
-    }
-    const maxPolls = 200
-    for (let i = 0; i < maxPolls; i++) {
-      await new Promise(r => setTimeout(r, 2000))
-      try {
-        const task = await api.get(`/tasks/${taskId}`)
-        if (task.status === 'success') {
-          const url = task.outputUrl || task.result?.videoUrl || task.result?.url || ''
-          if (url) { videoPath.value = url; emit('video-generated', url) }
-          return { success: true, message: url ? '视频生成成功' : '视频生成完成，请稍后在视频库查看' }
-        }
-        if (task.status === 'error' || task.status === 'failed') {
-          return { success: false, message: task.errorMessage || '视频生成失败' }
-        }
-        if (task.status === 'cancelled') {
-          return { success: false, message: '任务已取消' }
-        }
-        if (task.status === 'timeout') {
-          return { success: false, message: 'AI处理时间较长，任务已转入后台执行，完成后将自动保存' }
-        }
-      } catch (e) {
-        console.warn('轮询任务状态失败:', e.message)
+    if (submitResult.taskId) {
+      const result = await taskManager.waitForTask(submitResult.taskId, { timeout: 30 * 60 * 1000 })
+      if (result.success && result.outputUrl) {
+        videoPath.value = result.outputUrl
+        emit('video-generated', result.outputUrl)
+        return { success: true, message: '视频生成成功' }
       }
+      if (result.isTimeout) {
+        return { success: false, message: 'AI处理时间较长，任务已转入后台执行，完成后将自动保存' }
+      }
+      return { success: false, message: result.error || '视频生成失败' }
     }
-    return { success: false, message: '视频生成超时，请稍后在视频库查看' }
+    const url = submitResult.videoUrl || submitResult.data?.videoUrl || submitResult.url || submitResult.fileUrl || ''
+    if (url) { videoPath.value = url; emit('video-generated', url); return { success: true, message: '视频生成成功' } }
+    return { success: false, message: '提交任务失败' }
   })
 }
 
