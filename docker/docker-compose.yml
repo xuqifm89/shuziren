@@ -1,8 +1,8 @@
 services:
   backend:
     build:
-      context: ../packages/backend
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: packages/backend/Dockerfile
     container_name: shuziren-backend
     ports:
       - "${BACKEND_PORT:-3001}:3001"
@@ -41,8 +41,8 @@ services:
 
   frontend-pc:
     build:
-      context: ../packages/frontend-pc
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: packages/frontend-pc/Dockerfile
     container_name: shuziren-frontend-pc
     ports:
       - "${FRONTEND_PORT:-3080}:80"
@@ -54,8 +54,8 @@ services:
 
   admin-panel:
     build:
-      context: ../packages/admin-panel
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: packages/admin-panel/Dockerfile
     container_name: shuziren-admin-panel
     ports:
       - "${ADMIN_PORT:-3081}:80"
@@ -67,8 +67,8 @@ services:
 
   frontend-h5:
     build:
-      context: ../packages/frontend-miniapp
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: packages/frontend-miniapp/Dockerfile
     container_name: shuziren-frontend-h5
     ports:
       - "${H5_PORT:-3082}:80"

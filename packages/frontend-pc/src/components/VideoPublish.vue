@@ -273,6 +273,7 @@ const addingAccount = ref(false)
 const showQrcodeDialog = ref(false)
 const qrcodeUrl = ref('')
 const loginPollingTimer = ref(null)
+const loginRejectCallback = ref(null)
 const currentLoginPlatform = ref('')
 
 const platformIcons = {
@@ -665,6 +666,7 @@ async function handleLoginAccount(account) {
 
     showQrcodeDialog.value = true
     qrcodeUrl.value = ''
+    loginRejectCallback.value = null
     ElMessage.info('正在启动登录，请稍等...')
 
     await authAxios.post(`${API_BASE}/accounts/${account.id}/login`, {}, {
@@ -675,6 +677,7 @@ async function handleLoginAccount(account) {
     const maxPolls = 90
 
     await new Promise((resolve, reject) => {
+      loginRejectCallback.value = reject
       loginPollingTimer.value = setInterval(async () => {
         pollCount++
         console.log(`🔄 检查登录状态 [${pollCount}/${maxPolls}]...`)
@@ -690,11 +693,13 @@ async function handleLoginAccount(account) {
           if (data.status === 'success') {
             clearInterval(loginPollingTimer.value)
             loginPollingTimer.value = null
+            loginRejectCallback.value = null
             console.log('✅ 登录成功:', data)
             resolve()
           } else if (data.status === 'failed') {
             clearInterval(loginPollingTimer.value)
             loginPollingTimer.value = null
+            loginRejectCallback.value = null
             reject(new Error(data.output || '登录失败'))
           }
         } catch (err) {
@@ -703,6 +708,7 @@ async function handleLoginAccount(account) {
           } else {
             clearInterval(loginPollingTimer.value)
             loginPollingTimer.value = null
+            loginRejectCallback.value = null
             reject(err)
           }
         }
@@ -710,6 +716,7 @@ async function handleLoginAccount(account) {
         if (pollCount >= maxPolls) {
           clearInterval(loginPollingTimer.value)
           loginPollingTimer.value = null
+          loginRejectCallback.value = null
           reject(new Error('登录超时（3分钟），请重试'))
         }
       }, 2000)
@@ -730,8 +737,11 @@ async function handleLoginAccount(account) {
       clearInterval(loginPollingTimer.value)
       loginPollingTimer.value = null
     }
+    loginRejectCallback.value = null
 
-    if (err.message.includes('登录超时')) {
+    if (err.message === '用户取消登录') {
+      ElMessage.info('已取消登录')
+    } else if (err.message.includes('登录超时')) {
       ElMessage.error(err.message)
     } else if (err.response?.status === 500) {
       ElMessage.error(`登录失败: ${err.response.data?.error || '服务器错误'}`)
@@ -749,6 +759,10 @@ function closeQrcodeDialog() {
   if (loginPollingTimer.value) {
     clearInterval(loginPollingTimer.value)
     loginPollingTimer.value = null
+  }
+  if (loginRejectCallback.value) {
+    loginRejectCallback.value(new Error('用户取消登录'))
+    loginRejectCallback.value = null
   }
 }
 
