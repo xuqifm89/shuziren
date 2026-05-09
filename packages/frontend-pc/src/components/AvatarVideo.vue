@@ -305,11 +305,12 @@ onMounted(() => {
 
   taskManagerUnsubscribe = taskManager.subscribe((taskState) => {
     if (taskState.status === 'success' && taskState.outputUrl) {
-      if (taskState.taskType === 'dubbing_generation' || taskManager.state.taskType === 'dubbing_generation') {
+      const taskType = taskState.taskType || taskManager.state.taskType || ''
+      if (taskType === 'dubbing_generation' || taskType === 'dubbing') {
         generatedDubbingUrl.value = '' + taskState.outputUrl
         emit('audio-generated', taskState.outputUrl)
         isGeneratingDubbing.value = false
-      } else {
+      } else if (taskType === 'video_generation' || taskType === 'image_to_video' || taskType === 'video_to_video') {
         videoPath.value = '' + taskState.outputUrl
         isGenerating.value = false
         isGeneratingVideo.value = false

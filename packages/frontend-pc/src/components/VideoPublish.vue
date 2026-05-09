@@ -664,6 +664,9 @@ async function handleLoginAccount(account) {
   try {
     console.log(`🔐 开始登录 ${account.platform} 账号: ${account.accountName}`)
 
+    const platformNames = { douyin: '抖音', kuaishou: '快手', xiaohongshu: '小红书', bilibili: 'B站', weixin: '微信视频号' }
+    currentLoginPlatform.value = platformNames[account.platform] || account.platform
+
     showQrcodeDialog.value = true
     qrcodeUrl.value = ''
     loginRejectCallback.value = null
@@ -685,8 +688,8 @@ async function handleLoginAccount(account) {
         try {
           const { data } = await authAxios.get(`${API_BASE}/accounts/${account.id}/login-status`)
 
-          if (data.qrcodeUrl && !qrcodeUrl.value) {
-            qrcodeUrl.value = data.qrcodeUrl
+          if (data.qrcodeUrl) {
+            qrcodeUrl.value = data.qrcodeUrl + '?_t=' + Date.now()
             console.log('✅ 二维码已加载:', data.qrcodeUrl)
           }
 
