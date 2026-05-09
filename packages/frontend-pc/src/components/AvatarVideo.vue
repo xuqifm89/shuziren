@@ -225,7 +225,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useTaskManager } from '../composables/useTaskManager'
 import { getAuthHeaders } from '../utils/api.js'
@@ -250,6 +250,7 @@ console.log('🔄 AvatarVideo props:', {
 
 const emit = defineEmits(['video-generated', 'audio-generated'])
 const taskManager = useTaskManager()
+let taskManagerUnsubscribe = null
 
 watch(() => taskManager.state.outputUrl, (newUrl) => {
   if (newUrl && taskManager.state.status === 'success') {
@@ -310,6 +311,23 @@ onMounted(() => {
   fetchImages()
   fetchAudios()
   fetchLatestVideo()
+
+  taskManagerUnsubscribe = taskManager.subscribe((taskState) => {
+    if (taskState.status === 'success' && taskState.outputUrl) {
+      videoPath.value = '' + taskState.outputUrl
+      isGenerating.value = false
+    }
+    if (taskState.status === 'error') {
+      error.value = taskState.errorMessage || '视频生成失败'
+      isGenerating.value = false
+    }
+  })
+})
+
+onUnmounted(() => {
+  if (taskManagerUnsubscribe) {
+    taskManagerUnsubscribe()
+  }
 })
 
 const fetchLatestVideo = async () => {
