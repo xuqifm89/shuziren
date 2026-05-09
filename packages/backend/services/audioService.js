@@ -326,7 +326,8 @@ async function generateDubbing(voiceFilePath, text, emotionDescription = '', use
   console.log('📥 下载音频文件到本地...');
   if (task) await taskService.updateProgress(task.id, 85, '正在下载音频文件...');
 
-  const fileExt = audioUrl.includes('.flac') ? '.flac' : (audioUrl.includes('.mp3') ? '.mp3' : '.wav');
+  const isFlac = audioUrl.includes('.flac');
+  const fileExt = isFlac ? '.flac' : (audioUrl.includes('.mp3') ? '.mp3' : '.wav');
   const fileName = `dubbing_${Date.now()}${fileExt}`;
 
   const downloadResult = await runningHubAI.downloadFile(audioUrl, fileService.getFilePath('dubbings', fileName));
@@ -335,9 +336,27 @@ async function generateDubbing(voiceFilePath, text, emotionDescription = '', use
     throw new Error('音频文件下载失败: ' + downloadResult.error);
   }
 
+  let finalFileName = fileName;
+  if (isFlac) {
+    try {
+      const { getFfmpegPath } = require('../utils/ffmpegHelper');
+      const ffmpegPath = getFfmpegPath() || 'ffmpeg';
+      const flacPath = fileService.getFilePath('dubbings', fileName);
+      const mp3FileName = fileName.replace('.flac', '.mp3');
+      const mp3Path = fileService.getFilePath('dubbings', mp3FileName);
+      const { execSync } = require('child_process');
+      execSync(`"${ffmpegPath}" -y -i "${flacPath}" -ab 192k -f mp3 "${mp3Path}"`, { timeout: 30000 });
+      fs.unlinkSync(flacPath);
+      finalFileName = mp3FileName;
+      console.log('✅ FLAC已转换为MP3:', mp3FileName);
+    } catch (convertErr) {
+      console.warn('⚠️ FLAC转MP3失败，保留原格式:', convertErr.message);
+    }
+  }
+
   console.log('✅ 音频文件已保存');
-  const fileUrl = fileService.getUrl('dubbings', fileName);
-  const fileSize = fs.statSync(fileService.getFilePath('dubbings', fileName)).size;
+  const fileUrl = fileService.getUrl('dubbings', finalFileName);
+  const fileSize = fs.statSync(fileService.getFilePath('dubbings', finalFileName)).size;
 
   const dubbing = await dubbingLibraryRepository.create({
     userId: userId || '00000000-0000-0000-0000-000000000000',
@@ -881,13 +900,28 @@ function scheduleDubbingPolling(task, rhTaskId, runningHubAI, text, emotionDescr
           dubbingPollingTimers.delete(pollKey);
 
           console.log('📥 后台轮询获取到音频，开始下载...');
-          const fileExt = audioUrl.includes('.flac') ? '.flac' : (audioUrl.includes('.mp3') ? '.mp3' : '.wav');
+          const isFlac = audioUrl.includes('.flac');
+          const fileExt = isFlac ? '.flac' : (audioUrl.includes('.mp3') ? '.mp3' : '.wav');
           const fileName = `dubbing_${Date.now()}${fileExt}`;
           const downloadResult = await runningHubAI.downloadFile(audioUrl, fileService.getFilePath('dubbings', fileName));
 
           if (downloadResult.success) {
-            const fileUrl = fileService.getUrl('dubbings', fileName);
-            const fileSize = fs.statSync(fileService.getFilePath('dubbings', fileName)).size;
+            let finalFileName = fileName;
+            if (isFlac) {
+              try {
+                const { getFfmpegPath } = require('../utils/ffmpegHelper');
+                const ffmpegPath = getFfmpegPath() || 'ffmpeg';
+                const flacPath = fileService.getFilePath('dubbings', fileName);
+                const mp3FileName = fileName.replace('.flac', '.mp3');
+                const mp3Path = fileService.getFilePath('dubbings', mp3FileName);
+                const { execSync } = require('child_process');
+                execSync(`"${ffmpegPath}" -y -i "${flacPath}" -ab 192k -f mp3 "${mp3Path}"`, { timeout: 30000 });
+                fs.unlinkSync(flacPath);
+                finalFileName = mp3FileName;
+              } catch (e) {}
+            }
+            const fileUrl = fileService.getUrl('dubbings', finalFileName);
+            const fileSize = fs.statSync(fileService.getFilePath('dubbings', finalFileName)).size;
 
             await dubbingLibraryRepository.create({
               userId: userId || '00000000-0000-0000-0000-000000000000',
