@@ -1141,6 +1141,7 @@ const generateVideo = async () => {
         }
 
         if (data.success && data.taskId) {
+          startVideoPolling(data.taskId)
           return { success: true, taskId: data.taskId }
         } else if (data.success && data.videoUrl) {
           videoPath.value = '' + data.videoUrl
@@ -1162,6 +1163,7 @@ const generateVideo = async () => {
 
         const data = await response.json()
         if (data.success && data.taskId) {
+          startVideoPolling(data.taskId)
           return { success: true, taskId: data.taskId }
         } else if (data.videoPath) {
           videoPath.value = '/' + data.videoPath
@@ -1182,6 +1184,41 @@ const regenerateVideo = () => {
   console.log('🔄 regenerateVideo')
   videoPath.value = ''
   generateVideo()
+}
+
+let videoPollTimer = null
+
+const startVideoPolling = (taskId) => {
+  if (videoPollTimer) clearInterval(videoPollTimer)
+
+  videoPollTimer = setInterval(async () => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}?_t=${Date.now()}`, {
+        headers: {
+          ...getAuthHeaders(),
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        }
+      })
+      if (!res.ok) return
+      const task = await res.json()
+
+      if ((task.status === 'success' || task.outputUrl) && task.status !== 'error') {
+        clearInterval(videoPollTimer)
+        videoPollTimer = null
+        videoPath.value = '' + task.outputUrl
+        isGenerating.value = false
+        isGeneratingVideo.value = false
+        emit('video-generated', task.outputUrl)
+        taskManager.completeTask('视频生成完成')
+      } else if (task.status === 'error') {
+        clearInterval(videoPollTimer)
+        videoPollTimer = null
+        error.value = task.errorMessage || '视频生成失败'
+        isGenerating.value = false
+        taskManager.failTask(task.errorMessage || '视频生成失败')
+      }
+    } catch (e) {}
+  }, 5000)
 }
 
 const confirmVideo = () => {
