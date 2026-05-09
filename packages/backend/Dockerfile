@@ -58,7 +58,8 @@ RUN mkdir -p \
   output/video \
   output/covers \
   output/frames \
-  data
+  data \
+  social-auto-upload/cookies
 
 RUN chmod +x /app/docker-entrypoint.sh
 

@@ -161,9 +161,11 @@ router.post('/accounts/:id/login', authMiddleware, async (req, res) => {
 
     const processKey = `${account.platform}_${account.accountName}`;
     if (loginProcesses.has(processKey)) {
+      console.log(`🔐 登录进程已在运行: ${processKey}`);
       return res.json({ success: true, message: '登录进程已在运行', status: 'running' });
     }
 
+    console.log(`🔐 启动登录进程: ${processKey} (${account.platform})`);
     const loginPromise = publishService.loginAccount(account.platform, account.accountName);
     loginProcesses.set(processKey, { promise: loginPromise, status: 'running', output: '' });
 
@@ -206,9 +208,22 @@ router.get('/accounts/:id/login-status', async (req, res) => {
           .reverse();
         if (files.length > 0) {
           qrcodeUrl = `/social-auto-upload/cookies/${files[0]}`;
+          console.log(`📱 二维码文件已找到: ${files[0]}`);
+        } else {
+          console.log(`📱 cookies目录存在但无匹配二维码, 查找前缀: ${account.platform}_${account.accountName}_login_qrcode_`);
+          const allFiles = fs.readdirSync(cookiesDir);
+          if (allFiles.length > 0) {
+            console.log(`📱 cookies目录中的文件: ${allFiles.join(', ')}`);
+          } else {
+            console.log(`📱 cookies目录为空`);
+          }
         }
+      } else {
+        console.log(`📱 cookies目录不存在: ${cookiesDir}`);
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error(`📱 扫描二维码文件异常: ${e.message}`);
+    }
 
     res.json({
       status: process ? process.status : 'idle',
