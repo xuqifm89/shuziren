@@ -405,11 +405,32 @@ export function useTaskManager() {
     stopPolling()
     saveState()
 
-    setTimeout(() => {
-      clearState()
-    }, 3000)
+    const savedOutputUrl = state.outputUrl
+    const savedTaskType = state.taskType
 
     notifyListeners()
+
+    setTimeout(() => {
+      state.isActive = false
+      state.taskType = ''
+      state.taskName = ''
+      state.status = 'pending'
+      state.taskId = null
+      state.serverTaskId = null
+      state.startTime = null
+      state.inputData = {}
+      state.errorMessage = ''
+      state.successMessage = ''
+      state.isCancelling = false
+      state.progress = 0
+      state.progressMessage = ''
+
+      try {
+        localStorage.removeItem(TASK_STORAGE_KEY)
+      } catch (err) {}
+
+      notifyListeners()
+    }, 3000)
   }
 
   function failTask(errorMsg = '') {
