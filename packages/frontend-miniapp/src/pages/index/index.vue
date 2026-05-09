@@ -319,11 +319,12 @@ function handleClipLocalUpload() {
       try {
         uni.showLoading({ title: '上传中...' })
         const uploadResult = await uploadFile('/clips/upload-video', res.tempFilePath, 'video')
-        if (uploadResult.videoUrl) clipVideo.value = uploadResult.videoUrl
+        if (uploadResult.videoUrl || uploadResult.success) clipVideo.value = uploadResult.videoUrl || clipVideo.value
         uni.hideLoading()
+        uni.showToast({ title: '上传成功', icon: 'success' })
       } catch (e) {
         uni.hideLoading()
-        uni.showToast({ title: '上传失败', icon: 'none' })
+        uni.showToast({ title: '上传失败: ' + (e.message || ''), icon: 'none' })
       }
     }
   })
@@ -344,11 +345,12 @@ function handlePublishLocalUpload() {
       try {
         uni.showLoading({ title: '上传中...' })
         const uploadResult = await uploadFile('/clips/upload-video', res.tempFilePath, 'video')
-        if (uploadResult.videoUrl) publishVideo.value = uploadResult.videoUrl
+        if (uploadResult.videoUrl || uploadResult.success) publishVideo.value = uploadResult.videoUrl || publishVideo.value
         uni.hideLoading()
+        uni.showToast({ title: '上传成功', icon: 'success' })
       } catch (e) {
         uni.hideLoading()
-        uni.showToast({ title: '上传失败', icon: 'none' })
+        uni.showToast({ title: '上传失败: ' + (e.message || ''), icon: 'none' })
       }
     }
   })
