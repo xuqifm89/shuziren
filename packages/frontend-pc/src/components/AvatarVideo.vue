@@ -252,15 +252,6 @@ const emit = defineEmits(['video-generated', 'audio-generated'])
 const taskManager = useTaskManager()
 let taskManagerUnsubscribe = null
 
-watch(() => taskManager.state.outputUrl, (newUrl) => {
-  if (newUrl && taskManager.state.status === 'success') {
-    videoPath.value = '' + newUrl
-    isGenerating.value = false
-    isGeneratingVideo.value = false
-    emit('video-generated', newUrl)
-  }
-})
-
 const allAvatars = ref([])
 const selectedAvatar = ref(null)
 const selectedAvatarId = ref('')
