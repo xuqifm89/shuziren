@@ -105,9 +105,9 @@ const CACHE_KEYS = {
 
 // 轮询相关常量
 const POLLING_CONFIG = {
-  interval: 3000,        // 轮询间隔（毫秒）
-  maxAttempts: 200,      // 最大轮询次数（10分钟）
-  checkInterval: 5000    // 后台检查间隔（毫秒）
+  interval: 2000,
+  maxAttempts: 300,
+  checkInterval: 5000
 }
 
 const libraryVoices = ref([])

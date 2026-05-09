@@ -272,9 +272,9 @@ async function handleGenerate() {
       if (url) { videoPath.value = url; emit('video-generated', url); return { success: true, message: '视频生成成功' } }
       return { success: false, message: '提交任务失败' }
     }
-    const maxPolls = 120
+    const maxPolls = 200
     for (let i = 0; i < maxPolls; i++) {
-      await new Promise(r => setTimeout(r, 3000))
+      await new Promise(r => setTimeout(r, 2000))
       try {
         const task = await api.get(`/tasks/${taskId}`)
         if (task.status === 'success') {
@@ -287,6 +287,9 @@ async function handleGenerate() {
         }
         if (task.status === 'cancelled') {
           return { success: false, message: '任务已取消' }
+        }
+        if (task.status === 'timeout') {
+          return { success: false, message: 'AI处理时间较长，任务已转入后台执行，完成后将自动保存' }
         }
       } catch (e) {
         console.warn('轮询任务状态失败:', e.message)

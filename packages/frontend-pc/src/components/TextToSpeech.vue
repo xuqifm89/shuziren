@@ -235,7 +235,7 @@ const checkAndRestorePendingTask = async () => {
 
     if (pendingTask.taskId) {
       currentTaskId = pendingTask.taskId
-      startPolling()
+      taskManager.setServerTaskId(pendingTask.taskId)
     }
   } catch (err) {
     console.error('❌ 恢复配音任务失败:', err)
@@ -614,7 +614,7 @@ const generateAudio = async () => {
           voiceFileUrl: selectedVoice.value.fileUrl,
           taskId: data.taskId
         })
-        startPolling()
+        taskManager.setServerTaskId(data.taskId)
         return { success: true, taskId: data.taskId }
       } else if (data.success && data.audioUrl) {
         const fullAudioUrl = '' + data.audioUrl

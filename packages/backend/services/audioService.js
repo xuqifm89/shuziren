@@ -109,9 +109,44 @@ async function generateAudio(text, voiceId, modelType = 'cloud', userId = null) 
       throw new Error(result.error);
     }
 
-    const taskResult = await runningHubAI.waitForCompletion(result.taskId);
-    if (!taskResult.success || taskResult.status === 'FAILED') {
-      throw new Error(taskResult.error || '任务执行失败');
+    const taskResult = await runningHubAI.waitForCompletionWithWebSocket(result.taskId, result.netWssUrl, {
+      onProgress: async (progress, message) => {
+        console.log(`📊 TTS进度: ${progress}% - ${message}`);
+      }
+    });
+
+    console.log('✅ TTS WebSocket阶段结束, success:', taskResult.success, 'status:', taskResult.status);
+
+    let audioUrl = '';
+
+    if (taskResult.success && taskResult.outputs && taskResult.outputs.length > 0) {
+      for (const output of taskResult.outputs) {
+        const url = typeof output === 'string' ? output : (output?.url || output?.cos_url || output?.file_url || '');
+        if (url) {
+          audioUrl = url;
+          console.log('✅ 从WebSocket找到输出音频 URL:', audioUrl);
+          break;
+        }
+      }
+    }
+
+    if (!audioUrl) {
+      console.log('📡 WebSocket未获取到音频URL，通过REST API查询任务结果...');
+      const taskResultData = await runningHubAI.waitForTaskResult(result.taskId);
+      if (taskResultData.success && taskResultData.outputs && taskResultData.outputs.length > 0) {
+        for (const output of taskResultData.outputs) {
+          const url = typeof output === 'string' ? output : (output?.url || output?.cos_url || output?.file_url || '');
+          if (url) {
+            audioUrl = url;
+            console.log('✅ 从REST API找到输出音频 URL:', audioUrl);
+            break;
+          }
+        }
+      }
+    }
+
+    if (!audioUrl) {
+      throw new Error('音频生成未获取到输出结果');
     }
 
     const outputDir = './output';
@@ -120,15 +155,8 @@ async function generateAudio(text, voiceId, modelType = 'cloud', userId = null) 
     }
 
     let audioPath = '';
-    if (taskResult.outputs && taskResult.outputs.length > 0) {
-      for (const output of taskResult.outputs) {
-        if (output.type === 'file' && output.url) {
-          audioPath = `${outputDir}/audio_${Date.now()}.wav`;
-          await runningHubAI.downloadFile(output.url, audioPath);
-          break;
-        }
-      }
-    }
+    audioPath = `${outputDir}/audio_${Date.now()}.wav`;
+    await runningHubAI.downloadFile(audioUrl, audioPath);
 
     // 更新日志 - 成功
     if (apiLog) {
@@ -863,110 +891,137 @@ function scheduleDubbingPolling(task, rhTaskId, runningHubAI, text, emotionDescr
   const pollKey = task.id;
   if (dubbingPollingTimers.has(pollKey)) return;
 
-  let attempts = 0;
-  const maxAttempts = 120;
-  const interval = 15000;
+  console.log(`🔌 后台配音任务尝试WebSocket重连: ${rhTaskId}`);
 
-  const timer = setInterval(async () => {
-    attempts++;
-    console.log(`🔄 后台轮询配音任务 [${attempts}/${maxAttempts}] taskId: ${task.id} rhTaskId: ${rhTaskId}`);
+  const wsTimeout = setTimeout(() => {
+    dubbingPollingTimers.delete(pollKey);
+  }, 30 * 60 * 1000);
 
+  dubbingPollingTimers.set(pollKey, wsTimeout);
+
+  (async () => {
     try {
-      const freshTask = await taskService.getTask(task.id);
-      if (freshTask && (freshTask.status === 'success' || freshTask.status === 'cancelled')) {
-        clearInterval(timer);
-        dubbingPollingTimers.delete(pollKey);
-        return;
-      }
-
-      const taskResultData = await runningHubAI.waitForTaskResult(rhTaskId, 5000, 5000);
-
-      if (taskResultData.success && taskResultData.outputs && taskResultData.outputs.length > 0) {
+      const taskResult = await runningHubAI.getTaskResult(rhTaskId);
+      if (taskResult.success && taskResult.status === 'SUCCESS' && taskResult.outputs && taskResult.outputs.length > 0) {
         let audioUrl = '';
-        for (const output of taskResultData.outputs) {
+        for (const output of taskResult.outputs) {
           const url = typeof output === 'string' ? output : (output?.url || output?.cos_url || output?.file_url || '');
           if (url && isAudioUrl(url)) {
             audioUrl = url;
             break;
           }
         }
-        if (!audioUrl && taskResultData.outputs.length > 0) {
-          const firstOutput = taskResultData.outputs[0];
+        if (!audioUrl && taskResult.outputs.length > 0) {
+          const firstOutput = taskResult.outputs[0];
           audioUrl = typeof firstOutput === 'string' ? firstOutput : (firstOutput?.url || firstOutput?.cos_url || firstOutput?.file_url || '');
         }
 
         if (audioUrl) {
-          clearInterval(timer);
+          clearTimeout(wsTimeout);
           dubbingPollingTimers.delete(pollKey);
-
-          console.log('📥 后台轮询获取到音频，开始下载...');
-          const isFlac = audioUrl.includes('.flac');
-          const fileExt = isFlac ? '.flac' : (audioUrl.includes('.mp3') ? '.mp3' : '.wav');
-          const fileName = `dubbing_${Date.now()}${fileExt}`;
-          const downloadResult = await runningHubAI.downloadFile(audioUrl, fileService.getFilePath('dubbings', fileName));
-
-          if (downloadResult.success) {
-            let finalFileName = fileName;
-            if (isFlac) {
-              try {
-                const { getFfmpegPath } = require('../utils/ffmpegHelper');
-                const ffmpegPath = getFfmpegPath() || 'ffmpeg';
-                const flacPath = fileService.getFilePath('dubbings', fileName);
-                const mp3FileName = fileName.replace('.flac', '.mp3');
-                const mp3Path = fileService.getFilePath('dubbings', mp3FileName);
-                const { execSync } = require('child_process');
-                execSync(`"${ffmpegPath}" -y -i "${flacPath}" -ab 192k -f mp3 "${mp3Path}"`, { timeout: 30000 });
-                fs.unlinkSync(flacPath);
-                finalFileName = mp3FileName;
-              } catch (e) {}
-            }
-            const fileUrl = fileService.getUrl('dubbings', finalFileName);
-            const fileSize = fs.statSync(fileService.getFilePath('dubbings', finalFileName)).size;
-
-            await dubbingLibraryRepository.create({
-              userId: userId || '00000000-0000-0000-0000-000000000000',
-              fileName: `配音_${Date.now()}`,
-              fileUrl: fileUrl,
-              fileSize: fileSize,
-              duration: 0,
-              description: `文本: ${text.substring(0, 100)}... | 音色: ${emotionDescription || '未指定'}`,
-              tags: 'AI配音',
-              isPublic: false
-            });
-
-            await taskService.completeTask(task.id, fileUrl);
-            console.log('✅ 后台轮询配音完成，已保存到配音库:', fileUrl);
-          } else {
-            await taskService.failTask(task.id, '后台下载音频失败: ' + downloadResult.error);
-          }
+          await handleDubbingResult(task, audioUrl, runningHubAI, text, emotionDescription, userId);
           return;
         }
       }
 
-      if (taskResultData.status === 'FAILED') {
-        clearInterval(timer);
-        dubbingPollingTimers.delete(pollKey);
-        await taskService.failTask(task.id, 'AI配音任务执行失败');
-        return;
+      const wsResult = await runningHubAI.waitForCompletionWithWebSocket(rhTaskId, null, {
+        timeout: 30 * 60 * 1000,
+        onProgress: (progress, message) => {
+          console.log(`📊 后台配音WebSocket进度: ${progress}% - ${message}`);
+        }
+      });
+
+      let audioUrl = '';
+      if (wsResult.success && wsResult.outputs && wsResult.outputs.length > 0) {
+        for (const output of wsResult.outputs) {
+          const url = typeof output === 'string' ? output : (output?.url || output?.cos_url || output?.file_url || '');
+          if (url && isAudioUrl(url)) {
+            audioUrl = url;
+            break;
+          }
+        }
+        if (!audioUrl && wsResult.outputs.length > 0) {
+          const firstOutput = wsResult.outputs[0];
+          audioUrl = typeof firstOutput === 'string' ? firstOutput : (firstOutput?.url || firstOutput?.cos_url || firstOutput?.file_url || '');
+        }
       }
 
-      if (attempts >= maxAttempts) {
-        clearInterval(timer);
-        dubbingPollingTimers.delete(pollKey);
-        await taskService.failTask(task.id, '后台轮询超时，AI任务未返回结果');
-        console.log('⏰ 后台轮询配音任务达到最大次数，停止');
+      if (!audioUrl) {
+        console.log('📡 后台WebSocket未获取到音频，通过REST API查询...');
+        const taskResultData = await runningHubAI.waitForTaskResult(rhTaskId, 600000, 10000);
+        if (taskResultData.success && taskResultData.outputs && taskResultData.outputs.length > 0) {
+          for (const output of taskResultData.outputs) {
+            const url = typeof output === 'string' ? output : (output?.url || output?.cos_url || output?.file_url || '');
+            if (url && isAudioUrl(url)) {
+              audioUrl = url;
+              break;
+            }
+          }
+          if (!audioUrl && taskResultData.outputs.length > 0) {
+            const firstOutput = taskResultData.outputs[0];
+            audioUrl = typeof firstOutput === 'string' ? firstOutput : (firstOutput?.url || firstOutput?.cos_url || firstOutput?.file_url || '');
+          }
+        }
+      }
+
+      clearTimeout(wsTimeout);
+      dubbingPollingTimers.delete(pollKey);
+
+      if (audioUrl) {
+        await handleDubbingResult(task, audioUrl, runningHubAI, text, emotionDescription, userId);
+      } else {
+        await taskService.failTask(task.id, '后台等待配音任务超时');
       }
     } catch (err) {
-      console.error('❌ 后台轮询配音异常:', err.message);
-      if (attempts >= maxAttempts) {
-        clearInterval(timer);
-        dubbingPollingTimers.delete(pollKey);
-        await taskService.failTask(task.id, '后台轮询异常: ' + err.message);
-      }
+      console.error('❌ 后台配音WebSocket异常:', err.message);
+      clearTimeout(wsTimeout);
+      dubbingPollingTimers.delete(pollKey);
+      await taskService.failTask(task.id, '后台等待配音异常: ' + err.message);
     }
-  }, interval);
+  })();
+}
 
-  dubbingPollingTimers.set(pollKey, timer);
+async function handleDubbingResult(task, audioUrl, runningHubAI, text, emotionDescription, userId) {
+  console.log('📥 后台获取到音频，开始下载...');
+  const isFlac = audioUrl.includes('.flac');
+  const fileExt = isFlac ? '.flac' : (audioUrl.includes('.mp3') ? '.mp3' : '.wav');
+  const fileName = `dubbing_${Date.now()}${fileExt}`;
+  const downloadResult = await runningHubAI.downloadFile(audioUrl, fileService.getFilePath('dubbings', fileName));
+
+  if (downloadResult.success) {
+    let finalFileName = fileName;
+    if (isFlac) {
+      try {
+        const { getFfmpegPath } = require('../utils/ffmpegHelper');
+        const ffmpegPath = getFfmpegPath() || 'ffmpeg';
+        const flacPath = fileService.getFilePath('dubbings', fileName);
+        const mp3FileName = fileName.replace('.flac', '.mp3');
+        const mp3Path = fileService.getFilePath('dubbings', mp3FileName);
+        const { execSync } = require('child_process');
+        execSync(`"${ffmpegPath}" -y -i "${flacPath}" -ab 192k -f mp3 "${mp3Path}"`, { timeout: 30000 });
+        fs.unlinkSync(flacPath);
+        finalFileName = mp3FileName;
+      } catch (e) {}
+    }
+    const fileUrl = fileService.getUrl('dubbings', finalFileName);
+    const fileSize = fs.statSync(fileService.getFilePath('dubbings', finalFileName)).size;
+
+    await dubbingLibraryRepository.create({
+      userId: userId || '00000000-0000-0000-0000-000000000000',
+      fileName: `配音_${Date.now()}`,
+      fileUrl: fileUrl,
+      fileSize: fileSize,
+      duration: 0,
+      description: `文本: ${text.substring(0, 100)}... | 音色: ${emotionDescription || '未指定'}`,
+      tags: 'AI配音',
+      isPublic: false
+    });
+
+    await taskService.completeTask(task.id, fileUrl);
+    console.log('✅ 后台配音完成，已保存到配音库:', fileUrl);
+  } else {
+    await taskService.failTask(task.id, '后台下载音频失败: ' + downloadResult.error);
+  }
 }
 
 const videoPollingTimers = new Map();
@@ -975,94 +1030,121 @@ function scheduleVideoPolling(task, rhTaskId, runningHubAI, userId, sourceType) 
   const pollKey = task.id;
   if (videoPollingTimers.has(pollKey)) return;
 
-  let attempts = 0;
-  const maxAttempts = 120;
-  const interval = 15000;
+  console.log(`🔌 后台视频任务尝试WebSocket重连: ${rhTaskId}`);
 
-  const timer = setInterval(async () => {
-    attempts++;
-    console.log(`🔄 后台轮询视频任务 [${attempts}/${maxAttempts}] taskId: ${task.id} rhTaskId: ${rhTaskId}`);
+  const wsTimeout = setTimeout(() => {
+    videoPollingTimers.delete(pollKey);
+  }, 30 * 60 * 1000);
 
+  videoPollingTimers.set(pollKey, wsTimeout);
+
+  (async () => {
     try {
-      const freshTask = await taskService.getTask(task.id);
-      if (freshTask && (freshTask.status === 'success' || freshTask.status === 'cancelled')) {
-        clearInterval(timer);
-        videoPollingTimers.delete(pollKey);
-        return;
-      }
-
-      const taskResultData = await runningHubAI.waitForTaskResult(rhTaskId, 5000, 5000);
-
-      if (taskResultData.success && taskResultData.outputs && taskResultData.outputs.length > 0) {
+      const taskResult = await runningHubAI.getTaskResult(rhTaskId);
+      if (taskResult.success && taskResult.status === 'SUCCESS' && taskResult.outputs && taskResult.outputs.length > 0) {
         let videoUrl = '';
-        for (const output of taskResultData.outputs) {
+        for (const output of taskResult.outputs) {
           const url = typeof output === 'string' ? output : (output?.url || output?.cos_url || output?.file_url || '');
           if (url && isVideoUrl(url)) {
             videoUrl = url;
             break;
           }
         }
-        if (!videoUrl && taskResultData.outputs.length > 0) {
-          const firstOutput = taskResultData.outputs[0];
+        if (!videoUrl && taskResult.outputs.length > 0) {
+          const firstOutput = taskResult.outputs[0];
           videoUrl = typeof firstOutput === 'string' ? firstOutput : (firstOutput?.url || firstOutput?.cos_url || firstOutput?.file_url || '');
         }
 
         if (videoUrl) {
-          clearInterval(timer);
+          clearTimeout(wsTimeout);
           videoPollingTimers.delete(pollKey);
-
-          console.log('📥 后台轮询获取到视频，开始下载...');
-          const fileExt = videoUrl.includes('.mov') ? '.mov' : '.mp4';
-          const fileName = `video_${Date.now()}${fileExt}`;
-          const downloadResult = await runningHubAI.downloadFile(videoUrl, fileService.getFilePath('works', fileName));
-
-          if (downloadResult.success) {
-            const fileUrl = fileService.getUrl('works', fileName);
-            const fileSize = fs.statSync(fileService.getFilePath('works', fileName)).size;
-
-            await workLibraryRepository.create({
-              userId: userId || '00000000-0000-0000-0000-000000000000',
-              title: `视频_${Date.now()}`,
-              videoPath: fileUrl,
-              size: fileSize,
-              status: 'completed',
-              sourceType: sourceType,
-              description: `${sourceType === 'image_to_video' ? '图片生视频' : '视频生视频'}`
-            });
-
-            await taskService.completeTask(task.id, fileUrl);
-            console.log('✅ 后台轮询视频完成，已保存到作品库:', fileUrl);
-          } else {
-            await taskService.failTask(task.id, '后台下载视频失败: ' + downloadResult.error);
-          }
+          await handleVideoResult(task, videoUrl, runningHubAI, userId, sourceType);
           return;
         }
       }
 
-      if (taskResultData.status === 'FAILED') {
-        clearInterval(timer);
-        videoPollingTimers.delete(pollKey);
-        await taskService.failTask(task.id, 'AI视频任务执行失败');
-        return;
+      const wsResult = await runningHubAI.waitForCompletionWithWebSocket(rhTaskId, null, {
+        timeout: 30 * 60 * 1000,
+        onProgress: (progress, message) => {
+          console.log(`📊 后台视频WebSocket进度: ${progress}% - ${message}`);
+        }
+      });
+
+      let videoUrl = '';
+      if (wsResult.success && wsResult.outputs && wsResult.outputs.length > 0) {
+        for (const output of wsResult.outputs) {
+          const url = typeof output === 'string' ? output : (output?.url || output?.cos_url || output?.file_url || '');
+          if (url && isVideoUrl(url)) {
+            videoUrl = url;
+            break;
+          }
+        }
+        if (!videoUrl && wsResult.outputs.length > 0) {
+          const firstOutput = wsResult.outputs[0];
+          videoUrl = typeof firstOutput === 'string' ? firstOutput : (firstOutput?.url || firstOutput?.cos_url || firstOutput?.file_url || '');
+        }
       }
 
-      if (attempts >= maxAttempts) {
-        clearInterval(timer);
-        videoPollingTimers.delete(pollKey);
-        await taskService.failTask(task.id, '后台轮询超时，AI任务未返回结果');
-        console.log('⏰ 后台轮询视频任务达到最大次数，停止');
+      if (!videoUrl) {
+        console.log('📡 后台WebSocket未获取到视频，通过REST API查询...');
+        const taskResultData = await runningHubAI.waitForTaskResult(rhTaskId, 600000, 10000);
+        if (taskResultData.success && taskResultData.outputs && taskResultData.outputs.length > 0) {
+          for (const output of taskResultData.outputs) {
+            const url = typeof output === 'string' ? output : (output?.url || output?.cos_url || output?.file_url || '');
+            if (url && isVideoUrl(url)) {
+              videoUrl = url;
+              break;
+            }
+          }
+          if (!videoUrl && taskResultData.outputs.length > 0) {
+            const firstOutput = taskResultData.outputs[0];
+            videoUrl = typeof firstOutput === 'string' ? firstOutput : (firstOutput?.url || firstOutput?.cos_url || firstOutput?.file_url || '');
+          }
+        }
+      }
+
+      clearTimeout(wsTimeout);
+      videoPollingTimers.delete(pollKey);
+
+      if (videoUrl) {
+        await handleVideoResult(task, videoUrl, runningHubAI, userId, sourceType);
+      } else {
+        await taskService.failTask(task.id, '后台等待视频任务超时');
       }
     } catch (err) {
-      console.error('❌ 后台轮询视频异常:', err.message);
-      if (attempts >= maxAttempts) {
-        clearInterval(timer);
-        videoPollingTimers.delete(pollKey);
-        await taskService.failTask(task.id, '后台轮询异常: ' + err.message);
-      }
+      console.error('❌ 后台视频WebSocket异常:', err.message);
+      clearTimeout(wsTimeout);
+      videoPollingTimers.delete(pollKey);
+      await taskService.failTask(task.id, '后台等待视频异常: ' + err.message);
     }
-  }, interval);
+  })();
+}
 
-  videoPollingTimers.set(pollKey, timer);
+async function handleVideoResult(task, videoUrl, runningHubAI, userId, sourceType) {
+  console.log('📥 后台获取到视频，开始下载...');
+  const fileExt = videoUrl.includes('.mov') ? '.mov' : '.mp4';
+  const fileName = `video_${Date.now()}${fileExt}`;
+  const downloadResult = await runningHubAI.downloadFile(videoUrl, fileService.getFilePath('works', fileName));
+
+  if (downloadResult.success) {
+    const fileUrl = fileService.getUrl('works', fileName);
+    const fileSize = fs.statSync(fileService.getFilePath('works', fileName)).size;
+
+    await workLibraryRepository.create({
+      userId: userId || '00000000-0000-0000-0000-000000000000',
+      title: `视频_${Date.now()}`,
+      videoPath: fileUrl,
+      size: fileSize,
+      status: 'completed',
+      sourceType: sourceType,
+      description: `${sourceType === 'image_to_video' ? '图片生视频' : '视频生视频'}`
+    });
+
+    await taskService.completeTask(task.id, fileUrl);
+    console.log('✅ 后台视频完成，已保存到作品库:', fileUrl);
+  } else {
+    await taskService.failTask(task.id, '后台下载视频失败: ' + downloadResult.error);
+  }
 }
 
 module.exports = { generateAudio, generateDubbing, generateImageToVideo, generateVideoToVideo, listVoices, uploadVoice };

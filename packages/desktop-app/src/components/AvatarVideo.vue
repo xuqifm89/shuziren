@@ -625,8 +625,8 @@ const generateImageToVideo = async () => {
       console.log('🎬 生成结果:', data)
       if (data.success && data.taskId) {
         const taskId = data.taskId
-        for (let i = 0; i < 120; i++) {
-          await new Promise(r => setTimeout(r, 3000))
+        for (let i = 0; i < 200; i++) {
+          await new Promise(r => setTimeout(r, 2000))
           try {
             const pollRes = await authFetch(`http://localhost:3001/api/tasks/${taskId}`)
             const task = await pollRes.json()
@@ -641,8 +641,11 @@ const generateImageToVideo = async () => {
             if (task.status === 'cancelled') {
               throw new Error('任务已取消')
             }
+            if (task.status === 'timeout') {
+              throw new Error('AI处理时间较长，任务已转入后台执行，完成后将自动保存')
+            }
           } catch (e) {
-            if (e.message.includes('生成失败') || e.message.includes('已取消')) throw e
+            if (e.message.includes('生成失败') || e.message.includes('已取消') || e.message.includes('后台执行')) throw e
             console.warn('轮询任务状态失败:', e.message)
           }
         }
@@ -1063,7 +1066,7 @@ const generateDubbing = async () => {
           error.value = '轮询任务状态失败'
           isGeneratingDubbing.value = false
         }
-      }, 3000)
+      }, 2000)
       setTimeout(() => { clearInterval(pollInterval); isGeneratingDubbing.value = false }, 600000)
     } else if (data.success && data.audioUrl) {
       generatedDubbingUrl.value = 'http://localhost:3001' + data.audioUrl
@@ -1144,8 +1147,8 @@ const generateVideo = async () => {
         console.log('🎬 生成结果:', data)
         if (data.success && data.taskId) {
           const taskId = data.taskId
-          for (let i = 0; i < 120; i++) {
-            await new Promise(r => setTimeout(r, 3000))
+          for (let i = 0; i < 200; i++) {
+            await new Promise(r => setTimeout(r, 2000))
             try {
               const pollRes = await authFetch(`http://localhost:3001/api/tasks/${taskId}`)
               const task = await pollRes.json()
@@ -1160,8 +1163,11 @@ const generateVideo = async () => {
               if (task.status === 'cancelled') {
                 throw new Error('任务已取消')
               }
+              if (task.status === 'timeout') {
+                throw new Error('AI处理时间较长，任务已转入后台执行，完成后将自动保存')
+              }
             } catch (e) {
-              if (e.message.includes('生成失败') || e.message.includes('已取消')) throw e
+              if (e.message.includes('生成失败') || e.message.includes('已取消') || e.message.includes('后台执行')) throw e
               console.warn('轮询任务状态失败:', e.message)
             }
           }
