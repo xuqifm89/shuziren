@@ -302,6 +302,7 @@ const pollTaskResult = async () => {
       }
     })
     const task = await response.json()
+    window.__lastPollResult = task
 
     if (task.status === 'success' && task.outputUrl) {
       const url = '' + task.outputUrl
