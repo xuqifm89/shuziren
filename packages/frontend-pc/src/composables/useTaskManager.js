@@ -55,7 +55,7 @@ function startPolling() {
 
       const task = await response.json()
 
-      if (task.status === 'success') {
+      if (task.status === 'success' || (task.outputUrl && task.status !== 'error')) {
         state.progress = 100
         state.progressMessage = '任务完成'
         if (task.outputUrl) {
