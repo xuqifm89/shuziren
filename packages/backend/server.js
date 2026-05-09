@@ -331,23 +331,29 @@ app.get('/assets/musics/:filename', (req, res) => {
 });
 
 app.get('/assets/*/audio-mp3/*', (req, res) => {
-  const relPath = req.path.replace(/^\/assets\//, '').replace(/^audio-mp3\//, '');
-  const flacPath = path.join(__dirname, 'assets', relPath);
-  const mp3Dir = path.join(__dirname, 'assets', path.dirname(relPath), 'audio-mp3');
-  const mp3Name = path.basename(relPath, path.extname(relPath)) + '.mp3';
-  const mp3Path = path.join(mp3Dir, mp3Name);
+  const parts = req.path.match(/^\/assets\/(.+)\/audio-mp3\/(.+)\.mp3$/);
+  if (!parts) {
+    return res.status(404).json({ error: '路径格式错误' });
+  }
+
+  const dir = parts[1];
+  const baseName = parts[2];
+  const flacPath = path.join(__dirname, 'assets', dir, baseName + '.flac');
+  const mp3Dir = path.join(__dirname, 'assets', dir, 'audio-mp3');
+  const mp3Path = path.join(mp3Dir, baseName + '.mp3');
 
   if (require('fs').existsSync(mp3Path)) {
     return res.sendFile(mp3Path);
   }
 
-  if (require('fs').existsSync(flacPath) && flacPath.toLowerCase().endsWith('.flac')) {
+  if (require('fs').existsSync(flacPath)) {
     try {
       require('fs').mkdirSync(mp3Dir, { recursive: true });
       const ffmpegPath = require('./utils/ffmpegHelper').getFfmpegPath() || 'ffmpeg';
       require('child_process').execSync(`"${ffmpegPath}" -y -i "${flacPath}" -ab 192k -f mp3 "${mp3Path}"`, { timeout: 30000 });
       return res.sendFile(mp3Path);
     } catch (e) {
+      console.error('FLAC转MP3失败:', e.message);
       return res.status(500).json({ error: '转码失败' });
     }
   }
