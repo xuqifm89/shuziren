@@ -181,19 +181,20 @@ onMounted(() => loadData())
 
 function handleUploadImage() {
   uni.chooseImage({ count: 1, success: async (res) => {
-    const file = res.tempFiles[0]
+    const filePath = res.tempFilePaths[0]
     try {
       uni.showLoading({ title: '上传中...' })
-      const uploadResult = await uploadFile('/portrait-library/upload', file.path, 'file', { type: 'image' })
-      if (uploadResult.success || uploadResult.id) {
+      const uploadResult = await uploadFile('/portrait-library/upload', filePath, 'file', { type: 'image' })
+      if (uploadResult.fileUrl || uploadResult.success || uploadResult.id) {
         const user = getUserId()
         await api.post('/portrait-library', { userId: user?.id, fileName: '肖像图片', fileUrl: uploadResult.fileUrl || uploadResult.url, type: 'image', isPublic: false })
         uni.hideLoading()
         uni.showToast({ title: '上传成功', icon: 'success' }); loadData()
       } else {
         uni.hideLoading()
+        uni.showToast({ title: uploadResult.error || '上传失败', icon: 'none' })
       }
-    } catch (err) { uni.hideLoading(); uni.showToast({ title: '上传失败', icon: 'none' }) }
+    } catch (err) { uni.hideLoading(); uni.showToast({ title: '上传失败: ' + (err.message || ''), icon: 'none' }) }
   }})
 }
 
@@ -202,15 +203,16 @@ function handleUploadPortrait() {
     try {
       uni.showLoading({ title: '上传中...' })
       const uploadResult = await uploadFile('/portrait-library/upload', res.tempFilePath, 'file', { type: 'video' })
-      if (uploadResult.success || uploadResult.id) {
+      if (uploadResult.fileUrl || uploadResult.success || uploadResult.id) {
         const user = getUserId()
         await api.post('/portrait-library', { userId: user?.id, fileName: '肖像视频', fileUrl: uploadResult.fileUrl || uploadResult.url, type: 'video', isPublic: false })
         uni.hideLoading()
         uni.showToast({ title: '上传成功', icon: 'success' }); loadData()
       } else {
         uni.hideLoading()
+        uni.showToast({ title: uploadResult.error || '上传失败', icon: 'none' })
       }
-    } catch (err) { uni.hideLoading(); uni.showToast({ title: '上传失败', icon: 'none' }) }
+    } catch (err) { uni.hideLoading(); uni.showToast({ title: '上传失败: ' + (err.message || ''), icon: 'none' }) }
   }})
 }
 
@@ -224,16 +226,19 @@ function handleUploadDubbing() {
     if (!file) return
     try {
       uni.showLoading({ title: '上传中...' })
-      const uploadResult = await uploadFile('/dubbing-library/upload', file, 'file')
-      if (uploadResult.success || uploadResult.id) {
+      const blobUrl = URL.createObjectURL(file)
+      const uploadResult = await uploadFile('/dubbing-library/upload', blobUrl, 'file')
+      URL.revokeObjectURL(blobUrl)
+      if (uploadResult.fileUrl || uploadResult.success || uploadResult.id) {
         const user = getUserId()
         await api.post('/dubbing-library', { userId: user?.id, fileName: file.name || '配音', fileUrl: uploadResult.fileUrl || uploadResult.url, isPublic: false })
         uni.hideLoading()
         uni.showToast({ title: '上传成功', icon: 'success' }); loadData()
       } else {
         uni.hideLoading()
+        uni.showToast({ title: uploadResult.error || '上传失败', icon: 'none' })
       }
-    } catch (err) { uni.hideLoading(); uni.showToast({ title: '上传失败', icon: 'none' }) }
+    } catch (err) { uni.hideLoading(); uni.showToast({ title: '上传失败: ' + (err.message || ''), icon: 'none' }) }
   }
   input.click()
   // #endif
@@ -243,15 +248,16 @@ function handleUploadDubbing() {
     try {
       uni.showLoading({ title: '上传中...' })
       const uploadResult = await uploadFile('/dubbing-library/upload', file.path, 'file')
-      if (uploadResult.success || uploadResult.id) {
+      if (uploadResult.fileUrl || uploadResult.success || uploadResult.id) {
         const user = getUserId()
         await api.post('/dubbing-library', { userId: user?.id, fileName: file.name || '配音', fileUrl: uploadResult.fileUrl || uploadResult.url, isPublic: false })
         uni.hideLoading()
         uni.showToast({ title: '上传成功', icon: 'success' }); loadData()
       } else {
         uni.hideLoading()
+        uni.showToast({ title: uploadResult.error || '上传失败', icon: 'none' })
       }
-    } catch (err) { uni.hideLoading(); uni.showToast({ title: '上传失败', icon: 'none' }) }
+    } catch (err) { uni.hideLoading(); uni.showToast({ title: '上传失败: ' + (err.message || ''), icon: 'none' }) }
   }})
   // #endif
 }

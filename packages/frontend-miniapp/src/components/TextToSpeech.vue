@@ -157,8 +157,10 @@ function handleUploadVoice() {
     if (!file) return
     try {
       uni.showLoading({ title: '上传中...' })
-      const uploadResult = await uploadFile('/voice-library/upload', file, 'file')
-      if (uploadResult.success || uploadResult.id) {
+      const blobUrl = URL.createObjectURL(file)
+      const uploadResult = await uploadFile('/voice-library/upload', blobUrl, 'file')
+      URL.revokeObjectURL(blobUrl)
+      if (uploadResult.fileUrl || uploadResult.success || uploadResult.id) {
         const user = getUserId()
         await api.post('/voice-library', { userId: user?.id, fileName: file.name || '音色', fileUrl: uploadResult.fileUrl || uploadResult.url, fileSize: file.size, description: '', tags: '', isPublic: false })
         uni.hideLoading()
@@ -167,8 +169,9 @@ function handleUploadVoice() {
         voiceList.value = Array.isArray(result) ? result : (result?.list || result?.data || [])
       } else {
         uni.hideLoading()
+        uni.showToast({ title: uploadResult.error || '上传失败', icon: 'none' })
       }
-    } catch (err) { uni.hideLoading(); uni.showToast({ title: '上传失败', icon: 'none' }) }
+    } catch (err) { uni.hideLoading(); uni.showToast({ title: '上传失败: ' + (err.message || ''), icon: 'none' }) }
   }
   input.click()
   // #endif
@@ -180,7 +183,7 @@ function handleUploadVoice() {
       try {
         uni.showLoading({ title: '上传中...' })
         const uploadResult = await uploadFile('/voice-library/upload', file.path, 'file')
-        if (uploadResult.success || uploadResult.id) {
+        if (uploadResult.fileUrl || uploadResult.success || uploadResult.id) {
           const user = getUserId()
           await api.post('/voice-library', { userId: user?.id, fileName: file.name || '音色', fileUrl: uploadResult.fileUrl || uploadResult.url, fileSize: file.size, description: '', tags: '', isPublic: false })
           uni.hideLoading()
@@ -189,8 +192,9 @@ function handleUploadVoice() {
           voiceList.value = Array.isArray(result) ? result : (result?.list || result?.data || [])
         } else {
           uni.hideLoading()
+          uni.showToast({ title: uploadResult.error || '上传失败', icon: 'none' })
         }
-      } catch (err) { uni.hideLoading(); uni.showToast({ title: '上传失败', icon: 'none' }) }
+      } catch (err) { uni.hideLoading(); uni.showToast({ title: '上传失败: ' + (err.message || ''), icon: 'none' }) }
     }
   })
   // #endif
