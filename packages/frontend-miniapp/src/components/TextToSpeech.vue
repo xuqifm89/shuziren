@@ -156,11 +156,9 @@ function handleUploadVoice() {
     const file = e.target.files[0]
     if (!file) return
     try {
-      uni.showLoading({ title: '上传中...' })
-      const blobUrl = URL.createObjectURL(file)
-      const uploadResult = await uploadFile('/voice-library/upload', blobUrl, 'file')
-      URL.revokeObjectURL(blobUrl)
-      if (uploadResult.fileUrl || uploadResult.success || uploadResult.id) {
+        uni.showLoading({ title: '上传中...' })
+        const uploadResult = await uploadFile('/voice-library/upload', file, 'file')
+        if (uploadResult.fileUrl || uploadResult.success || uploadResult.id) {
         const user = getUserId()
         await api.post('/voice-library', { userId: user?.id, fileName: file.name || '音色', fileUrl: uploadResult.fileUrl || uploadResult.url, fileSize: file.size, description: '', tags: '', isPublic: false })
         uni.hideLoading()

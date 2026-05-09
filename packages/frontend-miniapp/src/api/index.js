@@ -6,9 +6,25 @@ function getToken() {
 
 export async function uploadFile(url, filePath, name = 'file', formData = {}) {
   const token = getToken()
+  const fullUrl = `${BASE_URL}${url}`
+
+  // #ifdef H5
+  if (filePath instanceof File || filePath instanceof Blob) {
+    const fd = new FormData()
+    fd.append(name, filePath, filePath.name || 'file')
+    Object.entries(formData).forEach(([k, v]) => { if (v !== undefined && v !== null) fd.append(k, v) })
+    const headers = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const response = await fetch(fullUrl, { method: 'POST', headers, body: fd })
+    if (!response.ok) throw new Error(`上传失败(${response.status})`)
+    const text = await response.text()
+    try { return JSON.parse(text) } catch (e) { return text }
+  }
+  // #endif
+
   return new Promise((resolve, reject) => {
     uni.uploadFile({
-      url: `${BASE_URL}${url}`,
+      url: fullUrl,
       filePath,
       name,
       formData,

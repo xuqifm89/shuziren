@@ -226,9 +226,7 @@ function handleUploadDubbing() {
     if (!file) return
     try {
       uni.showLoading({ title: '上传中...' })
-      const blobUrl = URL.createObjectURL(file)
-      const uploadResult = await uploadFile('/dubbing-library/upload', blobUrl, 'file')
-      URL.revokeObjectURL(blobUrl)
+      const uploadResult = await uploadFile('/dubbing-library/upload', file, 'file')
       if (uploadResult.fileUrl || uploadResult.success || uploadResult.id) {
         const user = getUserId()
         await api.post('/dubbing-library', { userId: user?.id, fileName: file.name || '配音', fileUrl: uploadResult.fileUrl || uploadResult.url, isPublic: false })
