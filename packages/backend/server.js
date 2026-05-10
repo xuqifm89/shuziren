@@ -474,6 +474,18 @@ async function startServer() {
     console.warn('⚠️ 初始化云端配置失败（非致命错误）:', error.message);
   }
 
+  try {
+    const stuckCount = await Task.update(
+      { status: 'error', errorMessage: '任务因服务重启被中断' },
+      { where: { status: 'processing' } }
+    );
+    if (stuckCount[0] > 0) {
+      console.log(`🔄 已恢复 ${stuckCount[0]} 个因重启中断的任务`);
+    }
+  } catch (e) {
+    console.warn('⚠️ 恢复中断任务失败:', e.message);
+  }
+
   const server = app.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
     console.log(`   API endpoints available at http://localhost:${PORT}`);
@@ -485,7 +497,60 @@ async function startServer() {
 
   server.timeout = 600000;
 
-  app.use(errorHandler);
+  const FRONTEND_DIR = process.env.FRONTEND_DIR || path.join(__dirname, 'frontend');
+
+const frontendRoutes = [
+  { path: '/admin', dir: 'admin', name: 'Admin' },
+  { path: '/h5', dir: 'h5', name: 'H5' },
+  { path: '/', dir: 'pc', name: 'PC' }
+];
+
+let frontendLoaded = false;
+for (const route of frontendRoutes) {
+  const dir = path.join(FRONTEND_DIR, route.dir);
+  if (fs.existsSync(dir)) {
+    app.use(route.path, express.static(dir, {
+      maxAge: 3600000,
+      etag: true,
+      lastModified: true,
+      setHeaders: (res, filePath) => {
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        if (filePath.endsWith('.html')) {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        }
+      }
+    }));
+    if (route.path === '/') {
+      app.get('*', (req, res) => {
+        const htmlFile = path.join(dir, 'index.html');
+        if (fs.existsSync(htmlFile)) {
+          res.sendFile(htmlFile);
+        } else {
+          res.status(404).json({ error: 'Frontend not built' });
+        }
+      });
+    } else {
+      app.get(`${route.path}`, (req, res) => {
+        res.redirect(`${route.path}/`);
+      });
+      app.get(`${route.path}/*`, (req, res) => {
+        const htmlFile = path.join(dir, 'index.html');
+        if (fs.existsSync(htmlFile)) {
+          res.sendFile(htmlFile);
+        } else {
+          res.status(404).json({ error: 'Frontend not built' });
+        }
+      });
+    }
+    console.log(`✅ Frontend [${route.dir}] served at ${route.path}`);
+    frontendLoaded = true;
+  }
+}
+if (!frontendLoaded) {
+  console.log('ℹ️ No frontend static files found, API-only mode');
+}
+
+app.use(errorHandler);
   server.headersTimeout = 600000;
   server.requestTimeout = 600000;
   server.keepAliveTimeout = 600000;

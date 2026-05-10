@@ -28,9 +28,12 @@ const upload = multer({ storage });
 router.get('/', optionalAuth, async (req, res) => {
   try {
     const effectiveUserId = req.userId;
+    const isAdmin = req.userRole === 'admin' || req.userRole === 'superadmin';
     
     let dubbings;
-    if (effectiveUserId) {
+    if (isAdmin) {
+      dubbings = await dubbingLibraryRepository.findAll();
+    } else if (effectiveUserId) {
       dubbings = await dubbingLibraryRepository.findByUserIdWithPublic(effectiveUserId);
     } else {
       dubbings = await dubbingLibraryRepository.findPublic();

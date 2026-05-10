@@ -7,9 +7,12 @@ router.get('/', optionalAuth, async (req, res) => {
   try {
     const effectiveUserId = req.userId;
     const { category, tag } = req.query;
+    const isAdmin = req.userRole === 'admin' || req.userRole === 'superadmin';
     
     let copies;
-    if (effectiveUserId && category) {
+    if (isAdmin) {
+      copies = await copyLibraryRepository.findAll();
+    } else if (effectiveUserId && category) {
       copies = await copyLibraryRepository.findByUserIdAndCategory(effectiveUserId, category);
     } else if (effectiveUserId && tag) {
       copies = await copyLibraryRepository.findByUserIdAndTag(effectiveUserId, tag);

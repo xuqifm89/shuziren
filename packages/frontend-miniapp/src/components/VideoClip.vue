@@ -256,7 +256,7 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted, getCurrentInstance } from 'vue'
 import api from '../api/index.js'
-import { resolveMediaUrl } from '../utils/media.js'
+import { resolveMediaUrl, toRelativePath } from '../utils/media.js'
 
 const props = defineProps({ videoPath: { type: String, default: '' } })
 const emit = defineEmits(['video-composed', 'start-task'])
@@ -518,7 +518,7 @@ async function extractFramesFor(target) {
   if (isLocalPath(props.videoPath)) return
   extractingFrames.value = true
   try {
-    const result = await api.post('/clips/extract-frames', { videoPath: props.videoPath, count: 5 })
+    const result = await api.post('/clips/extract-frames', { videoPath: toRelativePath(props.videoPath), count: 5 })
     if (result.success && result.frames && result.frames.length > 0) {
       if (target === 'subtitle') {
         subtitleFrames.value = result.frames
@@ -650,7 +650,7 @@ async function handleAISubtitle() {
   if (!props.videoPath) return
   emit('start-task', 'AI字幕生成', async () => {
     const user = getUserId()
-    const result = await api.post('/clips/ai-generate-subtitle', { videoPath: props.videoPath, userId: user?.id })
+    const result = await api.post('/clips/ai-generate-subtitle', { videoPath: toRelativePath(props.videoPath), userId: user?.id })
     if (result.subtitles && Array.isArray(result.subtitles)) {
       alignedSubtitles.value = result.subtitles
       subtitleText.value = result.subtitles.map(s => s.text).join('\n')
@@ -666,7 +666,7 @@ async function handleUseCover() {
   try {
     uni.showLoading({ title: '设置封面中...' })
     const result = await api.post('/clips/generate-cover', {
-      framePath: currentFrame.url,
+      framePath: toRelativePath(currentFrame.url),
       text: coverText.value,
       style: {
         fontSize: coverStyle.fontSize,
@@ -698,7 +698,7 @@ async function handleCompose() {
     const user = getUserId()
     const subtitles = parseSubtitles()
     const payload = {
-      videoPath: props.videoPath,
+      videoPath: toRelativePath(props.videoPath),
       userId: user?.id
     }
 
@@ -718,12 +718,12 @@ async function handleCompose() {
     }
 
     if (generatedCoverPath.value) {
-      payload.coverImagePath = generatedCoverPath.value
+      payload.coverImagePath = toRelativePath(generatedCoverPath.value)
       payload.coverDuration = String(coverDuration.value)
     }
 
     if (selectedBgmId.value && selectedBgmPath.value) {
-      payload.bgmPath = selectedBgmPath.value
+      payload.bgmPath = toRelativePath(selectedBgmPath.value)
       payload.bgmVolume = String(bgmVolume.value / 100)
     }
 

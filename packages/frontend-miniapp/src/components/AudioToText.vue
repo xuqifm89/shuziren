@@ -138,7 +138,13 @@ const copyList = ref([])
 const showForbiddenDialog = ref(false)
 const forbiddenAnalysis = ref({ loading: false, result: null, error: null })
 
-watch(generatedText, (val) => { uni.setStorageSync('audioToText_generatedText', val) })
+watch(generatedText, (val) => {
+  uni.setStorageSync('audioToText_generatedText', val)
+  if (val && !selectedSource.value) {
+    selectedSource.value = 'generated'
+    emit('text-generated', val)
+  }
+})
 watch(processedText, (val) => { uni.setStorageSync('audioToText_processedText', val) })
 watch(extractUrl, (val) => { uni.setStorageSync('audioToText_extractUrl', val) })
 watch(creativePrompt, (val) => { uni.setStorageSync('audioToText_creativePrompt', val) })
@@ -323,7 +329,7 @@ async function saveToLib(text) {
 .result-label { font-size: 24rpx; color: #667eea; font-weight: 600; min-width: 100rpx; }
 .result-btns { display: flex; gap: 16rpx; flex-wrap: wrap; justify-content: flex-end; }
 .result-btn { font-size: 24rpx; color: #fff; padding: 10rpx 20rpx; background: rgba(102,126,234,0.3); border-radius: 8rpx; text-align: center; min-width: calc(45% - 16rpx); }
-.result-btn.selected { color: #667eea; background: rgba(102,126,234,0.2); }
+.result-btn.selected { color: #fff; background: rgba(102,126,234,0.8); border: 1rpx solid #667eea; }
 .btn-optimize { background: rgba(46,204,113,0.3); }
 .btn-check { background: rgba(241,196,15,0.3); }
 .result-textarea { width: 100%; height: 320rpx; background: rgba(255,255,255,0.04); border: 1rpx solid rgba(255,255,255,0.08); border-radius: 8rpx; padding: 16rpx; font-size: 24rpx; color: rgba(255,255,255,0.8); box-sizing: border-box; overflow-y: auto; }

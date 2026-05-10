@@ -1,0 +1,130 @@
+services:
+  backend-dev:
+    build:
+      context: ../packages/backend
+      dockerfile: Dockerfile
+    container_name: shuziren-backend-dev
+    ports:
+      - "5001:3001"
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - DB_DIALECT=sqlite
+      - DB_PATH=/app/data/database.sqlite
+      - STORAGE_MODE=local
+      - LOCAL_MEDIA_PATH=/app/assets
+      - JWT_SECRET=dev_jwt_secret_2024
+      - ADMIN_JWT_SECRET=dev_admin_jwt_secret_2024
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:5174,http://localhost:5175,http://43.155.188.118:5173,http://43.155.188.118:5174,http://43.155.188.118:5175
+      - LOG_LEVEL=debug
+      - CONFIG_ENCRYPTION_KEY=dev_config_encryption_key_2024
+      - DISPLAY=:99
+      - CHROME_PATH=/usr/bin/chromium
+    volumes:
+      - ../packages/backend:/app
+      - /app/node_modules
+      - ../packages/backend/social-auto-upload:/app/social-auto-upload
+      - shuziren-assets:/app/assets
+      - shuziren-output:/app/output
+      - shuziren-data:/app/data
+      - shuziren-cookies:/app/social-auto-upload/cookies
+    restart: unless-stopped
+    networks:
+      - shuziren-network
+    entrypoint: []
+    command: bash -c "Xvfb :99 -screen 0 1280x720x24 -nolisten tcp & sleep 1 && exec npx nodemon server.js"
+
+  frontend-pc-dev:
+    build:
+      context: ..
+      dockerfile: packages/frontend-pc/Dockerfile
+      target: build
+    container_name: shuziren-frontend-pc-dev
+    working_dir: /app/packages/frontend-pc
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE=/api
+      - VITE_DEV_BACKEND_URL=http://backend-dev:3001
+      - DOCKER_ENV=true
+    volumes:
+      - ../packages/frontend-pc:/app/packages/frontend-pc
+      - ../packages/shared-components:/app/packages/shared-components
+      - ../packages/shared:/app/packages/shared
+      - /app/node_modules
+      - /app/packages/frontend-pc/node_modules
+      - /app/packages/shared-components/node_modules
+      - /app/packages/shared/node_modules
+    depends_on:
+      - backend-dev
+    restart: unless-stopped
+    networks:
+      - shuziren-network
+    command: npx vite --host 0.0.0.0 --port 5173
+
+  admin-panel-dev:
+    build:
+      context: ..
+      dockerfile: packages/admin-panel/Dockerfile
+      target: build
+    container_name: shuziren-admin-panel-dev
+    working_dir: /app/packages/admin-panel
+    ports:
+      - "5174:5174"
+    environment:
+      - VITE_API_BASE=/api
+      - VITE_DEV_BACKEND_URL=http://backend-dev:3001
+      - DOCKER_ENV=true
+    volumes:
+      - ../packages/admin-panel:/app/packages/admin-panel
+      - ../packages/shared-components:/app/packages/shared-components
+      - /app/node_modules
+      - /app/packages/admin-panel/node_modules
+      - /app/packages/shared-components/node_modules
+    depends_on:
+      - backend-dev
+    restart: unless-stopped
+    networks:
+      - shuziren-network
+    command: npx vite --host 0.0.0.0 --port 5174
+
+  frontend-h5-dev:
+    build:
+      context: ..
+      dockerfile: packages/frontend-miniapp/Dockerfile
+      target: builder
+    container_name: shuziren-frontend-h5-dev
+    working_dir: /app/packages/frontend-miniapp
+    ports:
+      - "5175:5175"
+    environment:
+      - VITE_DEV_BACKEND_URL=http://backend-dev:3001
+      - DOCKER_ENV=true
+    volumes:
+      - ../packages/frontend-miniapp:/app/packages/frontend-miniapp
+      - ../packages/shared-components:/app/packages/shared-components
+      - ../packages/shared:/app/packages/shared
+      - /app/node_modules
+      - /app/packages/frontend-miniapp/node_modules
+      - /app/packages/shared-components/node_modules
+      - /app/packages/shared/node_modules
+    depends_on:
+      - backend-dev
+    restart: unless-stopped
+    networks:
+      - shuziren-network
+    command: npx uni -p h5 --host 0.0.0.0 --port 5175
+
+networks:
+  shuziren-network:
+    driver: bridge
+
+volumes:
+  shuziren-assets:
+    name: shuziren_assets
+  shuziren-output:
+    name: shuziren_output
+  shuziren-data:
+    name: shuziren_data
+  shuziren-cookies:
+    name: shuziren_cookies

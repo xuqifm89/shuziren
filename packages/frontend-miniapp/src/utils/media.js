@@ -1,10 +1,44 @@
-const BASE_URL = ''
+function getOrigin() {
+  // #ifdef H5
+  if (typeof location !== 'undefined' && location.origin) return location.origin
+  // #endif
+  return ''
+}
+
+function convertToMp3(resolved) {
+  const lower = resolved.toLowerCase()
+  if (lower.endsWith('.flac') || lower.endsWith('.wav')) {
+    const dir = resolved.substring(0, resolved.lastIndexOf('/'))
+    const name = resolved.substring(resolved.lastIndexOf('/') + 1)
+    const mp3Name = name.replace(/\.(flac|wav)$/i, '.mp3')
+    return `${dir}/audio-mp3/${mp3Name}`
+  }
+  return resolved
+}
 
 export function resolveMediaUrl(url) {
   if (!url) return ''
   if (url.startsWith('http://') || url.startsWith('https://')) return url
-  if (url.startsWith('/')) return `${BASE_URL}${url}`
-  return `${BASE_URL}/${url}`
+  let resolved = url.startsWith('/') ? url : `/${url}`
+  resolved = convertToMp3(resolved)
+  // #ifdef H5
+  const origin = getOrigin()
+  if (origin && resolved.startsWith('/')) {
+    resolved = origin + resolved
+  }
+  // #endif
+  return resolved
+}
+
+export function toRelativePath(url) {
+  if (!url) return ''
+  try {
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      const u = new URL(url)
+      return u.pathname
+    }
+  } catch (e) {}
+  return url
 }
 
 export function formatFileSize(bytes) {

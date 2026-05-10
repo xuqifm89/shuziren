@@ -113,6 +113,13 @@ async function generateVideo(audioPath, avatarId, modelType = 'cloud', userId = 
 
     console.log('✅ WebSocket阶段结束, success:', taskResult.success, 'status:', taskResult.status);
 
+    if (!taskResult.success && taskResult.status !== 'TIMEOUT' && taskResult.status !== 'WS_CLOSED') {
+      const errorMsg = taskResult.error || 'AI任务执行失败';
+      console.log('❌ 视频任务执行失败:', errorMsg);
+      if (task) await taskService.failTask(task.id, errorMsg);
+      throw new Error(errorMsg);
+    }
+
     let videoUrl = '';
 
     if (taskResult.success && taskResult.outputs && taskResult.outputs.length > 0) {

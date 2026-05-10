@@ -215,6 +215,7 @@ class RunningHubAI {
     if (result.success && result.status === 'SUCCESS') {
       const costData = {};
       if (result.consumeCoins !== undefined) costData.consumeCoins = result.consumeCoins;
+      if (result.consumeMoney !== undefined) costData.consumeMoney = result.consumeMoney;
       if (result.taskCostTimeMs !== undefined) costData.taskCostTimeMs = result.taskCostTimeMs;
 
       return {
@@ -391,8 +392,9 @@ class RunningHubAI {
               const costData = {};
               if (costInfo.success) {
                 if (costInfo.consumeCoins !== null) costData.consumeCoins = costInfo.consumeCoins;
+                if (costInfo.consumeMoney !== null) costData.consumeMoney = costInfo.consumeMoney;
                 if (costInfo.taskCostTimeMs !== null) costData.taskCostTimeMs = costInfo.taskCostTimeMs;
-                console.log(`💰 消耗金币: ${costInfo.consumeCoins}, ⏱️ 任务耗时: ${costInfo.taskCostTimeMs}ms`);
+                console.log(`💰 消耗金币: ${costInfo.consumeCoins}, 消耗金额: ${costInfo.consumeMoney}元, ⏱️ 任务耗时: ${costInfo.taskCostTimeMs}ms`);
               }
 
               resolve({ success: true, status: 'SUCCESS', text: textResult, outputs: outputFiles, taskId, ...costData });
@@ -486,11 +488,15 @@ class RunningHubAI {
       if (response.data.code === 0 && response.data.data) {
         const outputs = response.data.data;
         let totalConsumeCoins = 0;
+        let totalConsumeMoney = 0;
         let maxTaskCostTimeMs = 0;
 
         for (const item of outputs) {
           if (item.consumeCoins) {
             totalConsumeCoins += parseFloat(item.consumeCoins) || 0;
+          }
+          if (item.consumeMoney) {
+            totalConsumeMoney += parseFloat(item.consumeMoney) || 0;
           }
           if (item.taskCostTime) {
             const costMs = parseFloat(item.taskCostTime) * 1000;
@@ -504,6 +510,7 @@ class RunningHubAI {
           success: true,
           outputs: outputs,
           consumeCoins: totalConsumeCoins > 0 ? totalConsumeCoins : null,
+          consumeMoney: totalConsumeMoney > 0 ? totalConsumeMoney : null,
           taskCostTimeMs: maxTaskCostTimeMs > 0 ? maxTaskCostTimeMs : null
         };
       } else {
@@ -534,8 +541,9 @@ class RunningHubAI {
         const costInfo = await this.getTaskOutputs(taskId);
         if (costInfo.success) {
           if (costInfo.consumeCoins !== null) result.consumeCoins = costInfo.consumeCoins;
+          if (costInfo.consumeMoney !== null) result.consumeMoney = costInfo.consumeMoney;
           if (costInfo.taskCostTimeMs !== null) result.taskCostTimeMs = costInfo.taskCostTimeMs;
-          console.log(`💰 消耗金币: ${costInfo.consumeCoins}, ⏱️ 任务耗时: ${costInfo.taskCostTimeMs}ms`);
+          console.log(`💰 消耗金币: ${costInfo.consumeCoins}, 消耗金额: ${costInfo.consumeMoney}元, ⏱️ 任务耗时: ${costInfo.taskCostTimeMs}ms`);
         }
 
         return result;

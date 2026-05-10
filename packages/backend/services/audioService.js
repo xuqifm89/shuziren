@@ -117,6 +117,13 @@ async function generateAudio(text, voiceId, modelType = 'cloud', userId = null) 
 
     console.log('✅ TTS WebSocket阶段结束, success:', taskResult.success, 'status:', taskResult.status);
 
+    if (!taskResult.success && taskResult.status !== 'TIMEOUT' && taskResult.status !== 'WS_CLOSED') {
+      const errorMsg = taskResult.error || 'AI任务执行失败';
+      console.log('❌ TTS任务执行失败:', errorMsg);
+      if (task) await taskService.failTask(task.id, errorMsg);
+      throw new Error(errorMsg);
+    }
+
     let audioUrl = '';
 
     if (taskResult.success && taskResult.outputs && taskResult.outputs.length > 0) {
@@ -300,6 +307,13 @@ async function generateDubbing(voiceFilePath, text, emotionDescription = '', use
   });
 
   console.log('✅ WebSocket阶段结束, success:', taskResult.success, 'status:', taskResult.status);
+
+  if (!taskResult.success && taskResult.status !== 'TIMEOUT' && taskResult.status !== 'WS_CLOSED') {
+    const errorMsg = taskResult.error || 'AI任务执行失败';
+    console.log('❌ 任务执行失败:', errorMsg);
+    if (task) await taskService.failTask(task.id, errorMsg);
+    throw new Error(errorMsg);
+  }
 
   let audioUrl = '';
 
@@ -570,6 +584,13 @@ async function generateImageToVideo(imageFileUrl, audioFileUrl, userId = null, e
 
   console.log('✅ WebSocket阶段结束, success:', taskResult.success, 'status:', taskResult.status);
 
+  if (!taskResult.success && taskResult.status !== 'TIMEOUT' && taskResult.status !== 'WS_CLOSED') {
+    const errorMsg = taskResult.error || 'AI任务执行失败';
+    console.log('❌ 视频生成任务执行失败:', errorMsg);
+    if (task) await taskService.failTask(task.id, errorMsg);
+    throw new Error(errorMsg);
+  }
+
   let videoUrl = '';
 
   if (taskResult.success && taskResult.outputs && taskResult.outputs.length > 0) {
@@ -774,6 +795,13 @@ async function generateVideoToVideo(videoFileUrl, audioFileUrl, userId = null, e
 
   console.log('✅ WebSocket阶段结束, success:', taskResult.success, 'status:', taskResult.status);
 
+  if (!taskResult.success && taskResult.status !== 'TIMEOUT' && taskResult.status !== 'WS_CLOSED') {
+    const errorMsg = taskResult.error || 'AI任务执行失败';
+    console.log('❌ 视频转视频任务执行失败:', errorMsg);
+    if (task) await taskService.failTask(task.id, errorMsg);
+    throw new Error(errorMsg);
+  }
+
   let outputVideoUrl = '';
 
   if (taskResult.success && taskResult.outputs && taskResult.outputs.length > 0) {
@@ -877,10 +905,25 @@ async function uploadVoice(voiceData, name, voiceType = 'text_to_speech', userId
     metadata: {}
   });
 
-  const audioUrl = `/assets/voices/${voice.id}.wav`;
+  const audioUrl = `/assets/voices/${voice.id}.mp3`;
   await voiceRepository.update(voice.id, { audioUrl });
 
-  fs.writeFileSync(`./assets/voices/${voice.id}.wav`, voiceData, 'base64');
+  const wavPath = `./assets/voices/${voice.id}.wav`;
+  fs.writeFileSync(wavPath, voiceData, 'base64');
+
+  try {
+    const { getFfmpegPath } = require('../utils/ffmpegHelper');
+    const ffmpegPath = getFfmpegPath() || 'ffmpeg';
+    const { execSync } = require('child_process');
+    const mp3Path = `./assets/voices/${voice.id}.mp3`;
+    execSync(`"${ffmpegPath}" -y -i "${wavPath}" -ab 192k -f mp3 "${mp3Path}"`, { timeout: 30000 });
+    fs.unlinkSync(wavPath);
+    console.log(`✅ Voice WAV converted to MP3: ${voice.id}.mp3`);
+  } catch (convErr) {
+    console.warn(`⚠️ Voice WAV to MP3 conversion failed, keeping WAV: ${convErr.message}`);
+    const fallbackUrl = `/assets/voices/${voice.id}.wav`;
+    await voiceRepository.update(voice.id, { audioUrl: fallbackUrl });
+  }
 
   return { voiceId: voice.id, success: true };
 }

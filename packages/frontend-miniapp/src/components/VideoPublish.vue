@@ -175,6 +175,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import api from '../api/index.js'
+import { toRelativePath } from '../utils/media.js'
 
 const MEDIA_BASE = ''
 
@@ -434,7 +435,7 @@ async function handlePublish() {
     const data = await api.post('/publish/upload', {
       userId: user?.id,
       accountIds: selectedAccountIds.value,
-      videoPath: props.videoPath,
+      videoPath: toRelativePath(props.videoPath),
       thumbnailPath,
       title: title.value,
       description: description.value,

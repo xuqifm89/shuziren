@@ -90,7 +90,7 @@
     "title": "拾光引擎",
     "router": {
       "mode": "hash",
-      "base": "/"
+      "base": "/h5/"
     },
     "template": "index.html",
     "sdkConfigs": {}

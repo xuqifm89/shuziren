@@ -40,6 +40,7 @@ export function useTaskManager() {
     failTask: taskFlow.failTask,
     cancelTask: taskFlow.cancelTask,
     clearState: taskFlow.clearState,
+    dismissTimeoutTask: taskFlow.dismissTimeoutTask,
     restoreTask: taskFlow.restoreTask,
     getTaskInfo: taskFlow.getState,
     isTaskActive: taskFlow.isTaskActive,

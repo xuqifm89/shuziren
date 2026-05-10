@@ -25,9 +25,12 @@ router.get('/', optionalAuth, async (req, res) => {
   try {
     const effectiveUserId = req.userId;
     const { status, category, tag, published } = req.query;
+    const isAdmin = req.userRole === 'admin' || req.userRole === 'superadmin';
     
     let works;
-    if (effectiveUserId && status) {
+    if (isAdmin) {
+      works = await workLibraryRepository.findAll();
+    } else if (effectiveUserId && status) {
       works = await workLibraryRepository.findByUserIdAndStatus(effectiveUserId, status);
     } else if (effectiveUserId && category) {
       works = await workLibraryRepository.findByUserIdAndCategory(effectiveUserId, category);

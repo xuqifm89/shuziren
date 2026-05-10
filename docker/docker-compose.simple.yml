@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     build:
@@ -11,76 +9,35 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=3001
-      
       - DB_DIALECT=sqlite
       - DB_PATH=/app/data/database.sqlite
-      
       - STORAGE_MODE=local
       - LOCAL_MEDIA_PATH=/app/assets
-      
       - JWT_SECRET=${JWT_SECRET:-shuziren_jwt_secret_2024}
       - ADMIN_JWT_SECRET=${ADMIN_JWT_SECRET:-shuziren_admin_jwt_secret_2024}
-      
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://43.155.188.118,http://43.155.188.118:3081,http://43.155.188.118:3082}
-      
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://43.155.188.118:3001,http://43.155.188.118}
       - LOG_LEVEL=info
       - CONFIG_ENCRYPTION_KEY=shuziren_config_encryption_key_2024
-    
+      - FRONTEND_DIR=/app/frontend
     volumes:
+      - ../packages/backend:/app
+      - /app/node_modules
+      - ../packages/backend/social-auto-upload:/app/social-auto-upload
       - shuziren-assets:/app/assets
       - shuziren-output:/app/output
       - shuziren-data:/app/data
       - shuziren-cookies:/app/social-auto-upload/cookies
-    
+      - ../packages/frontend-pc/dist:/app/frontend/pc
+      - ../packages/frontend-miniapp/dist/build/h5:/app/frontend/h5
+      - ../packages/admin-panel/dist:/app/frontend/admin
     restart: unless-stopped
-    
     networks:
       - shuziren-network
-    
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
-
-  frontend-pc:
-    build:
-      context: ..
-      dockerfile: packages/frontend-pc/Dockerfile
-    container_name: shuziren-frontend-pc
-    ports:
-      - "3080:80"
-    depends_on:
-      - backend
-    restart: unless-stopped
-    networks:
-      - shuziren-network
-
-  admin-panel:
-    build:
-      context: ..
-      dockerfile: packages/admin-panel/Dockerfile
-    container_name: shuziren-admin-panel
-    ports:
-      - "3081:80"
-    depends_on:
-      - backend
-    restart: unless-stopped
-    networks:
-      - shuziren-network
-
-  frontend-h5:
-    build:
-      context: ..
-      dockerfile: packages/frontend-miniapp/Dockerfile
-    container_name: shuziren-frontend-h5
-    ports:
-      - "3082:80"
-    depends_on:
-      - backend
-    restart: unless-stopped
-    networks:
-      - shuziren-network
 
 networks:
   shuziren-network:
@@ -89,12 +46,9 @@ networks:
 volumes:
   shuziren-assets:
     name: shuziren_assets
-  
   shuziren-output:
     name: shuziren_output
-  
   shuziren-data:
     name: shuziren_data
-
   shuziren-cookies:
     name: shuziren_cookies

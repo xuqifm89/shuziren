@@ -16,12 +16,16 @@ class TaskManager {
     this._progressInterval = null
     this._hintInterval = null
     this._hintIndex = 0
+    this._hasRealProgress = false
     this._hints = [
       '正在连接服务器...', '任务已加入队列...', 'AI模型准备中...',
       '内容生成中...', '请耐心等待...', '即将完成...'
     ]
 
     taskFlow.subscribe((newState) => {
+      if (newState.serverTaskId && newState.status === 'processing') {
+        this._hasRealProgress = true
+      }
       this._setState({
         isActive: newState.isActive,
         taskType: newState.taskType,
@@ -34,6 +38,9 @@ class TaskManager {
         progressMessage: newState.progressMessage,
         outputUrl: newState.outputUrl
       })
+      if (this._hasRealProgress && (this._progressInterval || this._hintInterval)) {
+        this._stopProgressAnimation()
+      }
     })
   }
 
@@ -46,6 +53,7 @@ class TaskManager {
     this._stopProgressAnimation()
     this._confirmCallback = null
     this._hintIndex = 0
+    this._hasRealProgress = false
     taskFlow.startTask(taskType, taskName, data)
     this._startProgressAnimation()
   }
@@ -85,18 +93,24 @@ class TaskManager {
 
   closeDialog() {
     this._stopProgressAnimation()
-    taskFlow.clearState()
+    if (this._state.status === 'timeout') {
+      taskFlow.dismissTimeoutTask()
+    } else {
+      taskFlow.clearState()
+    }
   }
 
   _startProgressAnimation() {
     this._progressInterval = setInterval(() => {
-      if (this._state.progress < 90) {
-        const increment = Math.random() * 3
-        const newProgress = Math.min(this._state.progress + increment, 90)
+      if (this._hasRealProgress) return
+      if (this._state.progress < 85) {
+        const increment = Math.random() * 2
+        const newProgress = Math.min(this._state.progress + increment, 85)
         this._setState({ progress: newProgress })
       }
     }, 800)
     this._hintInterval = setInterval(() => {
+      if (this._hasRealProgress) return
       this._hintIndex = (this._hintIndex + 1) % this._hints.length
       this._setState({ progressMessage: this._hints[this._hintIndex] })
     }, 3000)
@@ -112,29 +126,27 @@ class TaskManager {
   }
 
   restoreTask() {
-    try {
-      const saved = uni.getStorageSync('ai_task_state')
-      if (saved) {
-        const state = typeof saved === 'string' ? JSON.parse(saved) : saved
-        if (state.isActive) {
-          if (state.status === 'processing') {
-            this._setState(state)
-            this._startProgressAnimation()
-            return true
-          }
-          if (state.status === 'success' || state.status === 'error') {
-            this._setState(state)
-            return true
-          }
-          if (state.status === 'pending') {
-            this._setState({ isActive: false })
-            uni.removeStorageSync('ai_task_state')
-            return false
-          }
-        }
+    const restored = taskFlow.restoreTask()
+    if (restored) {
+      const flowState = taskFlow.getState()
+      this._hasRealProgress = !!flowState.serverTaskId
+      this._setState({
+        isActive: flowState.isActive,
+        taskType: flowState.taskType,
+        taskName: flowState.taskName,
+        status: flowState.status,
+        progress: flowState.progress,
+        errorMessage: flowState.errorMessage,
+        successMessage: flowState.successMessage,
+        isCancelling: flowState.isCancelling,
+        progressMessage: flowState.progressMessage,
+        outputUrl: flowState.outputUrl
+      })
+      if (flowState.isActive && flowState.status === 'processing' && !this._hasRealProgress) {
+        this._startProgressAnimation()
       }
-    } catch (e) {}
-    return false
+    }
+    return restored
   }
 
   submitTask(endpoint, payload, options = {}) {

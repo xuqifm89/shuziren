@@ -48,23 +48,23 @@ export default defineConfig({
     strictPort: false,
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: process.env.VITE_DEV_BACKEND_URL || 'http://localhost:3001',
         changeOrigin: true
       },
       '/assets': {
-        target: 'http://localhost:3001',
+        target: process.env.VITE_DEV_BACKEND_URL || 'http://localhost:3001',
         changeOrigin: true
       },
       '/output': {
-        target: 'http://localhost:3001',
+        target: process.env.VITE_DEV_BACKEND_URL || 'http://localhost:3001',
         changeOrigin: true
       },
       '/social-auto-upload': {
-        target: 'http://localhost:3001',
+        target: process.env.VITE_DEV_BACKEND_URL || 'http://localhost:3001',
         changeOrigin: true
       },
       '/ws': {
-        target: 'ws://localhost:3001',
+        target: process.env.VITE_DEV_BACKEND_URL ? process.env.VITE_DEV_BACKEND_URL.replace('http', 'ws') : 'ws://localhost:3001',
         ws: true
       }
     }

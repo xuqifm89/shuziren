@@ -190,6 +190,13 @@
             </template>
           </el-table-column>
 
+          <el-table-column prop="consumeMoney" label="金额(元)" min-width="80" sortable v-if="hasPlatformData('runninghub')">
+            <template #default="{ row }">
+              <span v-if="row.consumeMoney" class="money-value">¥{{ parseFloat(row.consumeMoney).toFixed(4) }}</span>
+              <span v-else>-</span>
+            </template>
+          </el-table-column>
+
           <el-table-column prop="taskCostTimeFormatted" label="执行时间" min-width="80" v-if="hasPlatformData('runninghub')">
             <template #default="{ row }">
               <span v-if="row.taskCostTimeFormatted">{{ row.taskCostTimeFormatted }}</span>
@@ -284,6 +291,10 @@
             <el-descriptions-item label="RH 任务ID">{{ selectedLog.rhTaskId || '-' }}</el-descriptions-item>
             <el-descriptions-item label="消耗金币">
               <span v-if="selectedLog.consumeCoins" class="coin-value">{{ selectedLog.consumeCoins }}</span>
+              <span v-else>-</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="消耗金额">
+              <span v-if="selectedLog.consumeMoney" class="money-value">¥{{ parseFloat(selectedLog.consumeMoney).toFixed(4) }}</span>
               <span v-else>-</span>
             </el-descriptions-item>
 
@@ -685,6 +696,11 @@ function formatFileSize(bytes) {
 
 .coin-value {
   color: #f56c6c;
+  font-weight: bold;
+}
+
+.money-value {
+  color: #e6a23c;
   font-weight: bold;
 }
 

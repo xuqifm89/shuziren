@@ -1,4 +1,5 @@
 const TASK_STORAGE_KEY = 'ai_task_state'
+const DISMISSED_TIMEOUT_KEY = 'dismissed_timeout_tasks'
 const TASK_TIMEOUT = 30 * 60 * 1000
 const DEFAULT_POLL_INTERVAL = 3000
 const DEFAULT_WS_TIMEOUT = 30 * 60 * 1000
@@ -49,6 +50,33 @@ export function createTaskFlow(adapter) {
     } catch (e) {}
   }
 
+  function getDismissedTimeoutTasks() {
+    try {
+      const data = adapter.getStorage(DISMISSED_TIMEOUT_KEY)
+      if (!data) return []
+      const list = typeof data === 'string' ? JSON.parse(data) : data
+      if (!Array.isArray(list)) return []
+      return list.filter(item => Date.now() - item.time < TASK_TIMEOUT)
+    } catch (e) {
+      return []
+    }
+  }
+
+  function addDismissedTimeoutTask(taskId) {
+    try {
+      const list = getDismissedTimeoutTasks()
+      if (!list.some(item => item.taskId === taskId)) {
+        list.push({ taskId, time: Date.now() })
+      }
+      adapter.setStorage(DISMISSED_TIMEOUT_KEY, JSON.stringify(list))
+    } catch (e) {}
+  }
+
+  function isTimeoutTaskDismissed(taskId) {
+    if (!taskId) return false
+    return getDismissedTimeoutTasks().some(item => item.taskId === taskId)
+  }
+
   function loadState() {
     try {
       const saved = adapter.getStorage(TASK_STORAGE_KEY)
@@ -56,6 +84,10 @@ export function createTaskFlow(adapter) {
         const parsed = typeof saved === 'string' ? JSON.parse(saved) : saved
         if (parsed.isActive && parsed.startTime) {
           if (Date.now() - parsed.startTime > TASK_TIMEOUT) {
+            clearState()
+            return false
+          }
+          if (parsed.status === 'timeout' && isTimeoutTaskDismissed(parsed.taskId)) {
             clearState()
             return false
           }
@@ -290,6 +322,14 @@ export function createTaskFlow(adapter) {
     const timeout = options.timeout || DEFAULT_WS_TIMEOUT
     const pollInterval = options.pollInterval || DEFAULT_POLL_INTERVAL
 
+    if (!state.serverTaskId && taskId) {
+      state.serverTaskId = taskId
+      initWebSocket()
+      startPolling()
+      saveState()
+      notifyListeners()
+    }
+
     return new Promise((resolve) => {
       let resolved = false
 
@@ -301,8 +341,11 @@ export function createTaskFlow(adapter) {
 
         const handler = (data) => {
           if (data.taskId !== taskId || resolved) return
-          if (data.progress !== undefined && options.onProgress) {
-            options.onProgress(data.progress, data.message)
+          if (data.progress !== undefined) {
+            state.progress = data.progress
+            if (data.message) state.progressMessage = data.message
+            notifyListeners()
+            if (options.onProgress) options.onProgress(data.progress, data.message)
           }
           if (data.status === 'success') {
             resolved = true
@@ -344,8 +387,11 @@ export function createTaskFlow(adapter) {
               resolved = true
               stopPollingInternal()
               resolve({ success: false, error: 'AI处理时间较长，任务已转入后台执行', data: task, isTimeout: true })
-            } else if (task.progress !== undefined && options.onProgress) {
-              options.onProgress(task.progress, task.progressMessage)
+            } else if (task.progress !== undefined) {
+              state.progress = task.progress
+              if (task.progressMessage) state.progressMessage = task.progressMessage
+              notifyListeners()
+              if (options.onProgress) options.onProgress(task.progress, task.progressMessage)
             }
           } catch (e) {}
           if (!resolved && Date.now() - startTime > timeout) {
@@ -424,8 +470,28 @@ export function createTaskFlow(adapter) {
     return true
   }
 
+  function dismissTimeoutTask() {
+    if (state.status === 'timeout' && state.taskId) {
+      addDismissedTimeoutTask(state.taskId)
+    }
+    clearState()
+  }
+
   function restoreTask() {
-    return loadState()
+    const restored = loadState()
+    if (restored && state.isActive) {
+      if (state.status === 'processing' && state.serverTaskId) {
+        initWebSocket()
+        if (wsInstance) {
+          if (!wsInstance.isConnected) wsInstance.connect()
+          const user = adapter.getUserInfo()
+          if (user?.id) wsInstance.authenticate(user.id)
+          wsInstance.subscribeTask(state.serverTaskId)
+        }
+        startPolling()
+      }
+    }
+    return restored
   }
 
   function getState() {
@@ -454,6 +520,7 @@ export function createTaskFlow(adapter) {
     failTask,
     cancelTask,
     clearState,
+    dismissTimeoutTask,
     restoreTask,
     getState,
     isTaskActive,

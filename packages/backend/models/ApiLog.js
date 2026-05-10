@@ -128,7 +128,13 @@ const ApiLog = sequelize.define('ApiLog', {
     allowNull: true,
     comment: '消耗的金币数（RunningHub）'
   },
-  
+
+  consumeMoney: {
+    type: DataTypes.DECIMAL(10, 4),
+    allowNull: true,
+    comment: '消耗金额（RunningHub，单位：元）'
+  },
+
   // 任务耗时（毫秒）
   taskCostTimeMs: {
     type: DataTypes.BIGINT,

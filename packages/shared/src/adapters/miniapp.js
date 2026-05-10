@@ -155,14 +155,21 @@ let wsInstance = null
 export function createMiniappAdapter(options = {}) {
   const apiBase = options.apiBase || ''
 
+  function _getToken() {
+    try { return uni.getStorageSync('token') || '' } catch (e) { return '' }
+  }
+
   return {
     async post(url, data) {
+      const token = _getToken()
+      const header = { 'Content-Type': 'application/json' }
+      if (token) header['Authorization'] = `Bearer ${token}`
       const res = await new Promise((resolve, reject) => {
         uni.request({
           url: apiBase + url,
           method: 'POST',
           data,
-          header: { 'Content-Type': 'application/json' },
+          header,
           success: (res) => resolve(res),
           fail: (err) => reject(err)
         })
@@ -171,13 +178,16 @@ export function createMiniappAdapter(options = {}) {
     },
 
     async get(url, params = {}) {
+      const token = _getToken()
       const query = Object.entries(params).map(([k, v]) => `${k}=${v}`).join('&')
       const fullUrl = apiBase + url + (query ? '?' + query : '')
+      const header = { 'Cache-Control': 'no-cache' }
+      if (token) header['Authorization'] = `Bearer ${token}`
       const res = await new Promise((resolve, reject) => {
         uni.request({
           url: fullUrl,
           method: 'GET',
-          header: { 'Cache-Control': 'no-cache' },
+          header,
           success: (res) => resolve(res),
           fail: (err) => reject(err)
         })
@@ -210,7 +220,7 @@ export function createMiniappAdapter(options = {}) {
       return null
     },
 
-    setInterval,
-    clearInterval
+    setInterval: typeof window !== 'undefined' ? window.setInterval.bind(window) : setInterval,
+    clearInterval: typeof window !== 'undefined' ? window.clearInterval.bind(window) : clearInterval
   }
 }

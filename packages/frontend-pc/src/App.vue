@@ -178,7 +178,11 @@ const handleTaskCancel = async () => {
 }
 
 const handleTaskClose = () => {
-  taskManager.closeDialog()
+  if (currentTaskInfo.value.status === 'timeout') {
+    taskManager.dismissTimeoutTask()
+  } else {
+    taskManager.clearState()
+  }
 }
 
 onMounted(() => {

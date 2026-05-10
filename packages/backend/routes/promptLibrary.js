@@ -7,9 +7,12 @@ router.get('/', optionalAuth, async (req, res) => {
   try {
     const effectiveUserId = req.userId;
     const { category, tag, modelType } = req.query;
+    const isAdmin = req.userRole === 'admin' || req.userRole === 'superadmin';
     
     let prompts;
-    if (effectiveUserId && category) {
+    if (isAdmin) {
+      prompts = await promptLibraryRepository.findAll();
+    } else if (effectiveUserId && category) {
       prompts = await promptLibraryRepository.findByUserIdAndCategory(effectiveUserId, category);
     } else if (effectiveUserId && modelType) {
       prompts = await promptLibraryRepository.findByUserIdAndModelType(effectiveUserId, modelType);

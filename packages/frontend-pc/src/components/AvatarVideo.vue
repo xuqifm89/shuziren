@@ -318,13 +318,11 @@ onMounted(() => {
       }
     }
     if (taskState.status === 'error') {
-      error.value = taskState.errorMessage || '生成失败'
       isGenerating.value = false
       isGeneratingVideo.value = false
       isGeneratingDubbing.value = false
     }
     if (taskState.status === 'timeout') {
-      error.value = taskState.progressMessage || 'AI处理时间较长，任务已转入后台执行'
       isGeneratingDubbing.value = false
     }
   })
@@ -1036,9 +1034,9 @@ const generateDubbing = async () => {
     } catch (parseErr) {
       console.error('❌ 解析响应失败:', parseErr)
       if (!response.ok) {
-        error.value = `服务器错误 (${response.status})，请检查后端服务是否正常运行`
+        taskManager.failTask(`服务器错误 (${response.status})，请检查后端服务是否正常运行`)
       } else {
-        error.value = '响应格式错误，请稍后重试'
+        taskManager.failTask('响应格式错误，请稍后重试')
       }
       return
     }
@@ -1051,13 +1049,11 @@ const generateDubbing = async () => {
       emit('audio-generated', generatedDubbingUrl.value)
       taskManager.completeTask('配音生成完成')
     } else {
-      error.value = getFriendlyErrorMessage(data.error)
       taskManager.failTask(getFriendlyErrorMessage(data.error))
     }
   } catch (err) {
     console.error('❌ 生成配音失败:', err)
-    error.value = '网络错误，请检查后端服务是否运行'
-    taskManager.failTask('网络错误')
+    taskManager.failTask('网络错误，请检查后端服务是否运行')
   } finally {
     isGeneratingDubbing.value = false
   }

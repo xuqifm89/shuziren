@@ -143,7 +143,13 @@ const handleLogout = () => {
 
 const handleTaskConfirm = () => { taskManager.confirmTask() }
 const handleTaskCancel = async () => { await taskManager.cancelTask() }
-const handleTaskClose = () => { taskManager.closeDialog() }
+const handleTaskClose = () => {
+  if (currentTaskInfo.value.status === 'timeout') {
+    taskManager.dismissTimeoutTask()
+  } else {
+    taskManager.clearState()
+  }
+}
 
 onMounted(() => {
   if (taskManager.restoreTask()) {

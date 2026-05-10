@@ -100,9 +100,12 @@ router.get('/', optionalAuth, async (req, res) => {
   try {
     const effectiveUserId = req.userId;
     const { type } = req.query;
+    const isAdmin = req.userRole === 'admin' || req.userRole === 'superadmin';
     
     let portraits;
-    if (effectiveUserId && type) {
+    if (isAdmin) {
+      portraits = await portraitLibraryRepository.findAll();
+    } else if (effectiveUserId && type) {
       portraits = await portraitLibraryRepository.findByUserIdAndType(effectiveUserId, type);
     } else if (effectiveUserId) {
       portraits = await portraitLibraryRepository.findByUserIdWithPublic(effectiveUserId);

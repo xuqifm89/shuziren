@@ -64,6 +64,9 @@ async function updateApiLog(logId, responseData) {
     if (responseData.consumeCoins !== undefined) {
       updateData.consumeCoins = responseData.consumeCoins;
     }
+    if (responseData.consumeMoney !== undefined) {
+      updateData.consumeMoney = responseData.consumeMoney;
+    }
     if (responseData.taskCostTimeMs !== undefined) {
       updateData.taskCostTimeMs = responseData.taskCostTimeMs;
       updateData.taskCostTimeFormatted = formatDuration(responseData.taskCostTimeMs);

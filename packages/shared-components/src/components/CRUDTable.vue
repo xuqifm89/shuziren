@@ -324,7 +324,15 @@ const base = computed(() => props.apiBase || (typeof import.meta !== 'undefined'
 let isUnmounted = false
 let abortController = null
 
+const getToken = () => {
+  return sessionStorage.getItem('adminToken') || localStorage.getItem('token')
+}
+
 const getCurrentUser = () => {
+  const adminUser = sessionStorage.getItem('adminUserInfo')
+  if (adminUser) {
+    try { return JSON.parse(adminUser) } catch (e) {}
+  }
   const userInfo = localStorage.getItem('userInfo')
   if (userInfo) {
     try {
@@ -380,7 +388,7 @@ const fetchData = async () => {
       url += `&${key}=${props.initialFilter[key]}`
     })
     const headers = {}
-    const token = localStorage.getItem('token')
+    const token = getToken()
     if (token) {
       headers['Authorization'] = `Bearer ${token}`
     }
@@ -406,7 +414,7 @@ const fetchTags = async () => {
   if (isUnmounted) return
   try {
     const headers = {}
-    const token = localStorage.getItem('token')
+    const token = getToken()
     if (token) {
       headers['Authorization'] = `Bearer ${token}`
     }
@@ -482,7 +490,7 @@ const handleSubmit = async () => {
     }
 
     const headers = { 'Content-Type': 'application/json' }
-    const token = localStorage.getItem('token')
+    const token = getToken()
     if (token) {
       headers['Authorization'] = `Bearer ${token}`
     }
@@ -516,7 +524,7 @@ const handleDelete = async (id) => {
 
   try {
     const headers = {}
-    const token = localStorage.getItem('token')
+    const token = getToken()
     if (token) {
       headers['Authorization'] = `Bearer ${token}`
     }
@@ -640,7 +648,7 @@ const saveTitleEdit = async () => {
 
   try {
     const headers = { 'Content-Type': 'application/json' }
-    const token = localStorage.getItem('token')
+    const token = getToken()
     if (token) {
       headers['Authorization'] = `Bearer ${token}`
     }

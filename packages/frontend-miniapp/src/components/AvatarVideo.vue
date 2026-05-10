@@ -109,6 +109,15 @@ let innerAudioCtx = null
 
 watch(videoPath, (val) => { uni.setStorageSync('avatarVideo_videoPath', val) })
 
+watch(() => props.audioPath, (val) => {
+  if (val) {
+    const user = getUserId()
+    api.get('/dubbing-library', user?.id ? { userId: user.id } : {}).then(raw => {
+      dubbingList.value = Array.isArray(raw) ? raw : (raw?.list || raw?.data || [])
+    }).catch(() => {})
+  }
+})
+
 function getUserId() {
   const userInfo = uni.getStorageSync('userInfo')
   if (userInfo) { try { return typeof userInfo === 'string' ? JSON.parse(userInfo) : userInfo } catch (e) {} }

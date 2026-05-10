@@ -157,10 +157,8 @@ onMounted(() => {
     if (taskState.status === 'timeout') {
       stopPolling()
       clearPendingTask()
-      error.value = '⏰ AI处理时间较长，任务已转入后台执行，完成后将自动保存到配音库，请稍后在配音库中查看'
     }
     if (taskState.status === 'error') {
-      error.value = taskState.errorMessage || '配音生成失败'
       stopPolling()
       clearPendingTask()
     }
@@ -325,7 +323,6 @@ const pollTaskResult = async () => {
     }
 
     if (task.status === 'error') {
-      error.value = task.errorMessage || '配音生成失败'
       stopPolling()
       clearPendingTask()
       taskManager.failTask(task.errorMessage || '配音生成失败')
@@ -632,7 +629,7 @@ const generateAudio = async () => {
       }
     } catch (err) {
       console.error('❌ [TextToSpeech] 配音生成异常:', err)
-      error.value = err.message || '配音生成失败'
+      taskManager.failTask(err.message || '配音生成失败')
       throw err
     } finally {
       isGenerating.value = false

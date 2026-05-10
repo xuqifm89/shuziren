@@ -28,9 +28,12 @@ const upload = multer({ storage });
 router.get('/', optionalAuth, async (req, res) => {
   try {
     const effectiveUserId = req.userId;
+    const isAdmin = req.userRole === 'admin' || req.userRole === 'superadmin';
     
     let voices;
-    if (effectiveUserId) {
+    if (isAdmin) {
+      voices = await voiceLibraryRepository.findAll();
+    } else if (effectiveUserId) {
       voices = await voiceLibraryRepository.findByUserIdWithPublic(effectiveUserId);
     } else {
       voices = await voiceLibraryRepository.findPublic();
@@ -123,8 +126,8 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     
     let filePath = path.join(voicesDir, req.file.filename);
     
-    if (filePath.toLowerCase().endsWith('.flac')) {
-      const mp3FileName = req.file.filename.replace(/\.flac$/i, '.mp3');
+    if (filePath.toLowerCase().endsWith('.flac') || filePath.toLowerCase().endsWith('.wav')) {
+      const mp3FileName = req.file.filename.replace(/\.(flac|wav)$/i, '.mp3');
       const mp3FilePath = path.join(voicesDir, mp3FileName);
       try {
         execSync(`"${ffmpegPath}" -y -i "${filePath}" -ab 192k -f mp3 "${mp3FilePath}"`, { timeout: 30000 });
@@ -132,9 +135,9 @@ router.post('/upload', upload.single('file'), async (req, res) => {
         fs.unlinkSync(filePath);
         filePath = mp3FilePath;
         req.file.filename = mp3FileName;
-        console.log(`✅ Converted FLAC to MP3: ${mp3FileName}`);
+        console.log(`✅ Converted to MP3: ${mp3FileName}`);
       } catch (convErr) {
-        console.warn(`⚠️ FLAC to MP3 conversion failed: ${convErr.message}`);
+        console.warn(`⚠️ Audio to MP3 conversion failed: ${convErr.message}`);
       }
     }
     

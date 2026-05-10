@@ -45,10 +45,14 @@ const videoUpload = multer({ storage: videoStorage });
 
 function resolvePath(p) {
   if (!p) return p;
-  if (p.startsWith('http://localhost:') || p.startsWith('http://127.0.0.1:')) {
+  if (p.startsWith('http://') || p.startsWith('https://')) {
     try {
       const url = new URL(p);
-      return path.join(__dirname, '..', url.pathname);
+      const pathname = url.pathname;
+      if (pathname.startsWith('/output') || pathname.startsWith('/assets')) {
+        return path.join(__dirname, '..', pathname);
+      }
+      return pathname;
     } catch (e) {
       return p;
     }
