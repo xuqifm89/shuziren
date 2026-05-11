@@ -280,6 +280,71 @@ class RunningHubAI {
     }
   }
 
+  async buildNodeInfoList(webappId, fieldMappings) {
+    const appInfo = await this.getAIAppInfo(webappId);
+    const result = [];
+
+    if (appInfo.success && appInfo.nodeInfoList && appInfo.nodeInfoList.length > 0) {
+      console.log('📋 动态匹配节点, 可用节点:', appInfo.nodeInfoList.map(n => `${n.nodeId}:${n.fieldName}(${n.fieldType})`).join(', '));
+
+      for (const mapping of fieldMappings) {
+        const { fieldValue, description, fieldType, fieldName, nodeId } = mapping;
+        let matched = null;
+
+        if (nodeId && fieldName) {
+          matched = appInfo.nodeInfoList.find(n => n.nodeId === String(nodeId) && n.fieldName === fieldName);
+        }
+
+        if (!matched && fieldType) {
+          matched = appInfo.nodeInfoList.find(n =>
+            n.fieldType === fieldType && (!fieldName || n.fieldName === fieldName)
+          );
+        }
+
+        if (!matched && fieldName) {
+          matched = appInfo.nodeInfoList.find(n => n.fieldName === fieldName);
+        }
+
+        if (!matched && description) {
+          const descLower = description.toLowerCase();
+          matched = appInfo.nodeInfoList.find(n =>
+            n.description && n.description.toLowerCase().includes(descLower)
+          );
+        }
+
+        if (matched) {
+          result.push({
+            nodeId: matched.nodeId,
+            fieldName: matched.fieldName,
+            fieldValue: fieldValue,
+            description: description || matched.description
+          });
+          console.log(`  ✅ 匹配: ${description || fieldName} -> nodeId=${matched.nodeId}, fieldName=${matched.fieldName}`);
+        } else {
+          result.push({
+            nodeId: nodeId || '',
+            fieldName: fieldName || '',
+            fieldValue: fieldValue,
+            description: description || ''
+          });
+          console.log(`  ⚠️ 未匹配: ${description || fieldName}, 使用回退 nodeId=${nodeId || '?'}`);
+        }
+      }
+    } else {
+      console.log('⚠️ 获取节点信息失败, 使用硬编码回退');
+      for (const mapping of fieldMappings) {
+        result.push({
+          nodeId: mapping.nodeId || '',
+          fieldName: mapping.fieldName || '',
+          fieldValue: mapping.fieldValue,
+          description: mapping.description || ''
+        });
+      }
+    }
+
+    return result;
+  }
+
   async waitForCompletionWithWebSocket(taskId, netWssUrl, options = {}) {
     const self = this;
     return new Promise((resolve, reject) => {

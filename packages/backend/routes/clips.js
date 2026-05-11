@@ -308,14 +308,15 @@ router.post('/ai-generate-subtitle', async (req, res) => {
           throw new Error('文件上传失败: ' + (uploadResult.error || ''));
         }
 
-        const nodeInfoList = [
+        const nodeInfoList = await runningHubAI.buildNodeInfoList(appId, [
           {
             nodeId: '12',
             fieldName: 'audio',
             fieldValue: uploadResult.fileName,
+            fieldType: 'AUDIO',
             description: 'audio'
           }
-        ];
+        ]);
 
         const result = await runningHubAI.runAIApp(appId, nodeInfoList);
         if (!result.success) {

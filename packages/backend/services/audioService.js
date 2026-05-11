@@ -240,29 +240,30 @@ async function generateDubbing(voiceFilePath, text, emotionDescription = '', use
     throw new Error('TTS/配音 AI 应用 ID 未配置（请检查 runninghub_app_dubbing 或 runninghub_app_tts）');
   }
 
-  const nodeInfoList = [
+  const nodeInfoList = await runningHubAI.buildNodeInfoList(appId, [
     {
       nodeId: '17',
       fieldName: 'audio',
       fieldValue: voiceFilePath,
+      fieldType: 'AUDIO',
       description: '声音样本'
     },
     {
       nodeId: '20',
       fieldName: 'prompt',
       fieldValue: text,
+      fieldType: 'STRING',
       description: '需配音的文字'
-    }
-  ];
-
-  if (emotionDescription) {
-    nodeInfoList.push({
+    },
+    {
       nodeId: '27',
       fieldName: 'prompt',
       fieldValue: emotionDescription,
-      description: '声音或情感描述'
-    });
-  }
+      fieldType: 'STRING',
+      description: '声音或情感描述',
+      optional: !emotionDescription
+    }
+  ].filter(m => !m.optional || m.fieldValue));
 
   console.log('📤 上传声音文件...');
   if (task) await taskService.updateProgress(task.id, 10, '正在上传声音文件...');
@@ -453,9 +454,6 @@ async function generateImageToVideo(imageFileUrl, audioFileUrl, userId = null, e
   const appInfo = await runningHubAI.getAIAppInfo(appId);
   if (!appInfo.success) {
     console.log('⚠️ 获取 APP 信息失败:', appInfo.error, '- 将使用默认节点配置');
-    console.log('⚠️ 请检查 RunningHub 后台获取正确的 nodeId 和 fieldName');
-  } else {
-    console.log('📋 AI App 节点信息:', JSON.stringify(appInfo, null, 2));
   }
 
   let imageFilePath = imageFileUrl;
@@ -503,57 +501,22 @@ async function generateImageToVideo(imageFileUrl, audioFileUrl, userId = null, e
   }
   console.log('✅ 音频上传成功:', audioUploadResult.fileName);
 
-  const imageNodeInfo = appInfo.success ? appInfo.nodeInfoList.find(n =>
-    n.fieldType === 'IMAGE' ||
-    (n.description && (n.description.toLowerCase().includes('image') || n.description.includes('图片')))
-  ) : null;
-
-  const audioNodeInfo = appInfo.success ? appInfo.nodeInfoList.find(n =>
-    n.fieldType === 'AUDIO' ||
-    (n.description && (n.description.toLowerCase().includes('audio') || n.description.includes('音频')))
-  ) : null;
-
-  console.log('📋 找到的图片节点:', imageNodeInfo);
-  console.log('📋 找到的音频节点:', audioNodeInfo);
-
-  const nodeInfoList = [];
-
-  if (imageNodeInfo) {
-    nodeInfoList.push({
-      nodeId: imageNodeInfo.nodeId,
-      fieldName: imageNodeInfo.fieldName,
+  const nodeInfoList = await runningHubAI.buildNodeInfoList(appId, [
+    {
+      nodeId: '180',
+      fieldName: 'image',
       fieldValue: imageUploadResult.fileName,
-      description: imageNodeInfo.description
-    });
-  }
-
-  if (audioNodeInfo) {
-    nodeInfoList.push({
-      nodeId: audioNodeInfo.nodeId,
-      fieldName: audioNodeInfo.fieldName,
+      fieldType: 'IMAGE',
+      description: '上传图片'
+    },
+    {
+      nodeId: '6',
+      fieldName: 'audio',
       fieldValue: audioUploadResult.fileName,
-      description: audioNodeInfo.description
-    });
-  }
-
-  if (nodeInfoList.length < 2) {
-    console.log('⚠️ 未找到完整的节点信息，使用配置好的节点...');
-    nodeInfoList.length = 0;
-    nodeInfoList.push(
-      {
-        nodeId: '180',
-        fieldName: 'image',
-        fieldValue: imageUploadResult.fileName,
-        description: '上传图片'
-      },
-      {
-        nodeId: '6',
-        fieldName: 'audio',
-        fieldValue: audioUploadResult.fileName,
-        description: '上传音频'
-      }
-    );
-  }
+      fieldType: 'AUDIO',
+      description: '上传音频'
+    }
+  ]);
 
   console.log('📤 提交的 nodeInfoList:', JSON.stringify(nodeInfoList, null, 2));
   console.log('🚀 发起图片生成视频任务...');
@@ -751,20 +714,22 @@ async function generateVideoToVideo(videoFileUrl, audioFileUrl, userId = null, e
   }
   console.log('✅ 音频上传成功:', audioUploadResult.fileName);
 
-  const nodeInfoList = [
+  const nodeInfoList = await runningHubAI.buildNodeInfoList(appId, [
     {
       nodeId: '34',
       fieldName: 'video',
       fieldValue: videoUploadResult.fileName,
+      fieldType: 'VIDEO',
       description: '上传视频'
     },
     {
       nodeId: '43',
       fieldName: 'audio',
       fieldValue: audioUploadResult.fileName,
+      fieldType: 'AUDIO',
       description: '上传配音'
     }
-  ];
+  ]);
 
   console.log('📤 提交的 nodeInfoList:', JSON.stringify(nodeInfoList, null, 2));
   console.log('🚀 发起视频生成视频任务...');

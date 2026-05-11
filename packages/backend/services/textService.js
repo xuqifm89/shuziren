@@ -136,14 +136,15 @@ async function transcribeAudio(audioPath, modelType = 'cloud', asrModel = 'qwen'
     const uploadedFileName = uploadResult.fileName;
     console.log(`✅ 上传成功: ${uploadedFileName}`);
 
-    const nodeInfoList = [
+    const nodeInfoList = await runningHubAI.buildNodeInfoList(appId, [
       {
         nodeId: '12',
         fieldName: 'audio',
         fieldValue: uploadedFileName,
+        fieldType: 'AUDIO',
         description: 'audio'
       }
-    ];
+    ]);
 
     console.log(`🚀 发起 AI 应用任务...`);
     const result = await runningHubAI.runAIApp(appId, nodeInfoList);
