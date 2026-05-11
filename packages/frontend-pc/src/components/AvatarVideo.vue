@@ -310,6 +310,8 @@ onMounted(() => {
         generatedDubbingUrl.value = '' + taskState.outputUrl
         emit('audio-generated', taskState.outputUrl)
         isGeneratingDubbing.value = false
+        fetchSounds()
+        fetchAudios()
       } else if (taskType === 'video_generation' || taskType === 'image_to_video' || taskType === 'video_to_video') {
         videoPath.value = '' + taskState.outputUrl
         isGenerating.value = false
@@ -350,6 +352,13 @@ const fetchLatestVideo = async () => {
     console.error('Failed to fetch latest video:', err)
   }
 }
+
+watch(() => props.audioPath, (newVal) => {
+  if (newVal) {
+    fetchSounds()
+    fetchAudios()
+  }
+})
 
 watch(() => props.useVideoDriver, (newVal, oldVal) => {
   console.log(`🔄 useVideoDriver watch - newVal: ${newVal}, oldVal: ${oldVal}`)

@@ -192,12 +192,25 @@
       {{ composing ? '处理中...' : '剪辑生成' }}
     </el-button>
 
-    <div class="result-section" v-if="resultVideoPath">
-      <div class="result-header">
-        <span class="result-title">✅ 生成完成</span>
-      </div>
-      <video :src="getVideoUrl(resultVideoPath)" controls class="result-player" />
-    </div>
+    <el-button
+      v-if="resultVideoPath"
+      type="success"
+      class="preview-btn"
+      @click="showResultDialog = true"
+    >
+      ▶ 预览剪辑结果
+    </el-button>
+
+    <el-dialog
+      v-model="showResultDialog"
+      title="剪辑结果预览"
+      width="480px"
+      :close-on-click-modal="true"
+      align-center
+      class="result-dialog"
+    >
+      <video :src="getVideoUrl(resultVideoPath)" controls class="result-player" autoplay />
+    </el-dialog>
   </div>
 </template>
 
@@ -268,7 +281,9 @@ const fontOptions = [
 
 const subtitleDisplayText = computed(() => {
   if (!subtitleText.value.trim()) return ''
-  return subtitleText.value.split('\n').find(l => l.trim()) || ''
+  const firstLine = subtitleText.value.split('\n').find(l => l.trim()) || ''
+  const parts = firstLine.trim().split(/\t/)
+  return parts[0] || firstLine
 })
 
 const displaySubtitleText = computed(() => {
@@ -503,6 +518,7 @@ const bgmVolume = ref(30)
 
 const composing = ref(false)
 const resultVideoPath = ref('')
+const showResultDialog = ref(false)
 const aligning = ref(false)
 const alignedSubtitles = ref([])
 
@@ -844,6 +860,7 @@ async function handleCompose() {
     if (data.success) {
       resultVideoPath.value = data.videoUrl || data.videoPath
       emit('video-composed', data.videoUrl || data.videoPath)
+      showResultDialog.value = true
       ElMessage.success('剪辑生成完成')
     } else {
       ElMessage.error('剪辑生成失败')
@@ -1309,25 +1326,14 @@ watch(() => ({ ...coverStyle }), (val) => {
   box-shadow: none !important;
 }
 
-.result-section {
-  border: 1px solid rgba(103, 194, 58, 0.3);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.result-header {
-  padding: 8px 12px;
-  background: rgba(103, 194, 58, 0.08);
-}
-
-.result-title {
-  color: #67c23a;
-  font-size: 13px;
-  font-weight: 500;
+.preview-btn {
+  width: 100%;
+  margin-top: 10px;
 }
 
 .result-player {
   width: 100%;
   display: block;
+  border-radius: 8px;
 }
 </style>
