@@ -111,6 +111,16 @@
             :rows="2"
             placeholder="输入封面文字"
           />
+          <el-button
+            type="primary"
+            size="small"
+            :loading="generatingTitle"
+            @click="handleAiGenerateTitle"
+            :disabled="!subtitleText.trim()"
+            class="ai-title-btn"
+          >
+            ✨ AI生成标题
+          </el-button>
         </div>
         <div class="style-group">
           <div class="style-group-title">文字</div>
@@ -506,6 +516,7 @@ const onCoverTouchStart = coverDrag.onTouchStart
 
 const generatingCover = ref(false)
 const generatedCoverPath = ref('')
+const generatingTitle = ref(false)
 
 const finalCoverUrl = ref('')
 const finalCoverServerPath = ref('')
@@ -758,6 +769,44 @@ async function handleAiGenerateSubtitle() {
       aligning.value = false
     }
   })
+}
+
+async function handleAiGenerateTitle() {
+  if (!subtitleText.value.trim()) {
+    ElMessage.warning('请先生成字幕内容')
+    return
+  }
+
+  generatingTitle.value = true
+  try {
+    const plainText = subtitleText.value.split('\n').map(l => {
+      const parts = l.trim().split(/\t/)
+      return parts[0] || l
+    }).filter(l => l.trim()).join(' ')
+
+    const { data } = await authAxios.post('/api/text/generate', {
+      prompt: `请根据以下视频字幕内容，生成一个简短有力的视频标题，最多16个字，只输出标题文字，不要加引号或其他符号：\n\n${plainText}`,
+      systemPrompt: '你是一个短视频标题生成专家。根据视频字幕内容，生成一个吸引人的短视频标题，最多16个字。只输出标题本身，不要输出任何解释、引号或额外内容。',
+      temperature: 0.8,
+      maxTokens: 50
+    })
+
+    if (data.success && data.text) {
+      let title = data.text.trim().replace(/^[""「」『』]+|[""「」『』]+$/g, '')
+      if (title.length > 16) {
+        title = title.substring(0, 16)
+      }
+      coverText.value = title
+      ElMessage.success('标题生成成功')
+    } else {
+      throw new Error(data.error || '标题生成失败')
+    }
+  } catch (err) {
+    console.error('AI生成标题失败:', err)
+    ElMessage.error('标题生成失败: ' + (err.response?.data?.error || err.message))
+  } finally {
+    generatingTitle.value = false
+  }
 }
 
 function parseSubtitles() {
@@ -1213,6 +1262,11 @@ watch(() => ({ ...coverStyle }), (val) => {
 
 .subtitle-input-area :deep(.el-textarea__inner:focus) {
   border-color: rgba(102, 126, 234, 0.5);
+}
+
+.ai-title-btn {
+  width: 100%;
+  margin-top: 6px;
 }
 
 .font-select {
