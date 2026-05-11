@@ -206,6 +206,7 @@
       title="剪辑结果预览"
       width="480px"
       :close-on-click-modal="true"
+      :lock-scroll="false"
       align-center
       class="result-dialog"
     >

@@ -158,7 +158,7 @@
       </div>
     </div>
 
-    <el-dialog v-model="showAddAccount" title="添加账号" width="400px" :append-to-body="true">
+    <el-dialog v-model="showAddAccount" title="添加账号" width="400px" :append-to-body="true" :lock-scroll="false">
       <div class="add-account-form">
         <div class="form-row">
           <span class="form-label">平台</span>
@@ -189,6 +189,7 @@
       width="400px"
       :close-on-click-modal="false"
       :close-on-press-escape="false"
+      :lock-scroll="false"
       @close="closeQrcodeDialog"
     >
       <div class="qrcode-dialog-content">
